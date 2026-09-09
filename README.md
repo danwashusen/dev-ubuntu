@@ -35,6 +35,58 @@ escalation executable to Ubuntu's supported `/usr/bin/sudo.ws` compatibility
 implementation. This affects Ansible only; interactive `sudo` remains
 `sudo-rs`.
 
+## Bootstrap a Parallels VM
+
+The Make workflow can create the VM hardware before Ubuntu and Ansible take
+over. It requires Parallels Desktop Pro or Business with `prlctl` available.
+Run:
+
+```bash
+make bootstrap
+```
+
+The workflow uses a checked-in **Dev Server** configuration profile as its
+default. This is a baked-in set of sizing and lean integration settings; it
+does not clone, inspect, or otherwise depend on a VM named `Dev Server` being
+registered. It recursively searches `~/Downloads` for Ubuntu Server ARM64 ISOs
+and offers the most recently modified image. Before changing anything, it
+prompts for the VM name, ISO, CPUs, memory, disk size, and whether to start,
+displays the complete proposal, and requires explicit confirmation.
+
+The created VM uses a lean Linux integration profile: bidirectional clipboard
+and UTC time synchronization are enabled; application sharing, shared folders,
+shared profile/cloud, printer synchronization, automatic camera/smart-card/
+gamepad sharing, host location, Rosetta, and automatic SSH-key injection are
+disabled. The Ubuntu installer itself remains interactive for now.
+
+List discovered images or registered VMs with:
+
+```bash
+make images
+make vms
+```
+
+Any prompt default can be supplied up front while retaining the final safety
+confirmation:
+
+```bash
+make bootstrap \
+  VM_NAME="Ubuntu Workstation" \
+  IMAGE="$HOME/Downloads/ubuntu-26.04.1-live-server-arm64.iso" \
+  CPUS=8 MEMORY_MB=8192 DISK_GB=24 START_VM=yes
+```
+
+To take only the CPU, memory, and disk defaults from a currently registered VM,
+set `SIZING_VM="VM name"`. The Dev Server integration profile remains in force.
+
+If Parallels fails after creating the VM but before finishing its configuration,
+fix the reported incompatibility and rerun the same command with `RESUME=yes`.
+This explicit switch prevents an existing VM from being modified accidentally;
+the recovery path will grow an undersized disk but never shrink an existing one.
+
+Automatic Ubuntu user creation and the subsequent Ansible invocation are
+deliberately deferred to the next stage of this workflow.
+
 ## Inventory and variables
 
 Replace both placeholders in `inventory.ini`:
@@ -49,6 +101,9 @@ Set the same account in `group_vars/all.yml`:
 ```yaml
 workstation_user: YOUR_USER
 ```
+
+The shell role creates the configurable `workstation_projects_dir`, which
+defaults to `~/Development/Projects` for the workstation account.
 
 The main switches live in `group_vars/all.yml`. Firefox, Chrome, VS Code, mise,
 Claude Code, Docker, and Snap removal are enabled by default. Set

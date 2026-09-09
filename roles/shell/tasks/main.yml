@@ -45,6 +45,14 @@
     - .local/bin
     - .local/share/fonts
 
+- name: Create workstation projects directory
+  ansible.builtin.file:
+    path: "{{ workstation_projects_dir }}"
+    state: directory
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0755"
+
 - name: Provide conventional fd command name
   ansible.builtin.file:
     src: /usr/bin/fdfind
