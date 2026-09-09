@@ -69,6 +69,227 @@
         state: present
         update_cache: true
 
+- name: Install 1Password for ARM64
+  tags: [onepassword]
+  when: install_1password | bool
+  block:
+    - name: Create 1Password download cache
+      ansible.builtin.file:
+        path: /var/cache/dev-ubuntu/1password
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Download 1Password signing key
+      ansible.builtin.get_url:
+        url: "{{ onepassword_signing_key_url }}"
+        dest: /var/cache/dev-ubuntu/1password/1password.asc
+        owner: root
+        group: root
+        mode: "0644"
+      register: onepassword_signing_key
+
+    - name: Inspect 1Password signing key
+      ansible.builtin.command:
+        argv:
+          - gpg
+          - --show-keys
+          - --with-colons
+          - /var/cache/dev-ubuntu/1password/1password.asc
+      register: onepassword_signing_key_details
+      changed_when: false
+
+    - name: Verify 1Password signing key fingerprint
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('fpr:::::::::' ~ onepassword_signing_key_fingerprint ~ ':')
+            in onepassword_signing_key_details.stdout
+        fail_msg: The downloaded 1Password signing key has an unexpected fingerprint.
+
+    - name: Inspect installed 1Password verification keyring
+      ansible.builtin.stat:
+        path: /usr/share/keyrings/1password-archive-keyring.gpg
+      register: onepassword_keyring
+
+    - name: Create 1Password verification keyring
+      ansible.builtin.command:
+        argv:
+          - gpg
+          - --dearmor
+          - --yes
+          - --output
+          - /usr/share/keyrings/1password-archive-keyring.gpg
+          - /var/cache/dev-ubuntu/1password/1password.asc
+      when:
+        - onepassword_signing_key.changed or not onepassword_keyring.stat.exists
+      changed_when: true
+
+    - name: Create 1Password package-signature policy directory
+      ansible.builtin.file:
+        path: /etc/debsig/policies/AC2D62742012EA22
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install 1Password package-signature policy
+      ansible.builtin.get_url:
+        url: "{{ onepassword_debsig_policy_url }}"
+        dest: /etc/debsig/policies/AC2D62742012EA22/1password.pol
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Create 1Password package-signature keyring directory
+      ansible.builtin.file:
+        path: /usr/share/debsig/keyrings/AC2D62742012EA22
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install 1Password package-signature keyring
+      ansible.builtin.copy:
+        src: /usr/share/keyrings/1password-archive-keyring.gpg
+        dest: /usr/share/debsig/keyrings/AC2D62742012EA22/debsig.gpg
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Configure 1Password CLI ARM64 apt repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/1password-cli.sources
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          Types: deb
+          URIs: {{ onepassword_cli_repository_url }}
+          Suites: stable
+          Components: main
+          Architectures: arm64
+          Signed-By: /usr/share/keyrings/1password-archive-keyring.gpg
+
+    - name: Install 1Password CLI
+      ansible.builtin.apt:
+        name:
+          - debsig-verify
+          - 1password-cli
+        state: present
+        update_cache: true
+
+    - name: Verify 1Password CLI installation
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/op
+          - --version
+      changed_when: false
+
+    - name: Download 1Password ARM64 archive
+      ansible.builtin.get_url:
+        url: "{{ onepassword_archive_url }}"
+        dest: /var/cache/dev-ubuntu/1password/1password-latest.tar.gz
+        owner: root
+        group: root
+        mode: "0644"
+      register: onepassword_archive
+
+    - name: Download 1Password archive signature
+      ansible.builtin.get_url:
+        url: "{{ onepassword_signature_url }}"
+        dest: /var/cache/dev-ubuntu/1password/1password-latest.tar.gz.sig
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Verify 1Password archive signature
+      ansible.builtin.command:
+        argv:
+          - gpgv
+          - --keyring
+          - /usr/share/keyrings/1password-archive-keyring.gpg
+          - /var/cache/dev-ubuntu/1password/1password-latest.tar.gz.sig
+          - /var/cache/dev-ubuntu/1password/1password-latest.tar.gz
+      changed_when: false
+
+    - name: Inspect installed 1Password application
+      ansible.builtin.stat:
+        path: /opt/1Password/1password
+      register: onepassword_application
+
+    - name: Create 1Password installation directory
+      ansible.builtin.file:
+        path: /opt/1Password
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Extract 1Password ARM64 application
+      ansible.builtin.unarchive:
+        src: /var/cache/dev-ubuntu/1password/1password-latest.tar.gz
+        dest: /opt/1Password
+        remote_src: true
+        extra_opts:
+          - --strip-components=1
+      when:
+        - onepassword_archive.changed or not onepassword_application.stat.exists
+      register: onepassword_extracted
+
+    - name: Inspect 1Password command integration
+      ansible.builtin.stat:
+        path: /usr/bin/1password
+      register: onepassword_command
+
+    - name: Inspect 1Password desktop integration
+      ansible.builtin.stat:
+        path: /usr/share/applications/1password.desktop
+      register: onepassword_desktop_entry
+
+    - name: Install 1Password desktop-menu compatibility helper
+      ansible.builtin.copy:
+        dest: /var/cache/dev-ubuntu/1password/xdg-desktop-menu
+        owner: root
+        group: root
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          set -eu
+
+          desktop_file=""
+          for argument do
+            case "${argument}" in
+              *.desktop) desktop_file="${argument}" ;;
+            esac
+          done
+
+          if [ -z "${desktop_file}" ]; then
+            echo "No desktop file was provided." >&2
+            exit 2
+          fi
+
+          /usr/bin/install -Dm0644 \
+            "${desktop_file}" \
+            "/usr/share/applications/$(/usr/bin/basename "${desktop_file}")"
+
+    - name: Run 1Password post-install integration
+      ansible.builtin.command:
+        argv:
+          - /opt/1Password/after-install.sh
+      environment:
+        PATH: /var/cache/dev-ubuntu/1password:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        XDG_CONFIG_DIRS: /etc/xdg
+        XDG_DATA_DIRS: /usr/local/share:/usr/share
+      when:
+        - >-
+          onepassword_extracted.changed or
+          not onepassword_command.stat.exists or
+          not onepassword_desktop_entry.stat.exists
+      changed_when: true
+
 - name: Install mise from its official apt repository
   when: install_mise | bool
   block:

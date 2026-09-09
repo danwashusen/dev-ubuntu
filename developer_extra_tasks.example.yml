@@ -1,0 +1,13 @@
+---
+# Copy this file to developer_extra_tasks.yml and add normal Ansible tasks.
+# The copied file is loaded automatically and ignored by Git.
+#
+# Example (replace the empty list below):
+#
+# - name: Install checkout-specific apt packages
+#   ansible.builtin.apt:
+#     name:
+#       - package-name
+#     state: present
+#     update_cache: true
+[]

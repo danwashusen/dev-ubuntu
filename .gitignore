@@ -1,4 +1,6 @@
 .ansible/
 .artifacts/
+/developer_extra_tasks.yml
+/local-vars.yml
 *.retry
 .DS_Store

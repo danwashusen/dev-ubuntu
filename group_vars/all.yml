@@ -7,7 +7,6 @@ ansible_become_exe: /usr/bin/sudo.ws
 
 workstation_timezone: Australia/Melbourne
 keyboard_layout: us
-workstation_projects_dir: "{{ workstation_home }}/Development/Projects"
 
 # Correct VM clock drift from the Ansible controller before apt validates
 # repository timestamps. This commonly matters after a VM has been suspended.
@@ -20,6 +19,7 @@ perform_full_upgrade: true
 install_firefox: true
 install_chrome: true
 install_vscode: true
+install_1password: true
 install_mise: true
 install_claude_code: true
 install_docker: true
@@ -76,6 +76,19 @@ oh_my_zsh_plugins:
 
 # The native Claude Code installer accepts "stable", "latest", or a version.
 claude_code_channel: stable
+
+# 1Password's desktop Debian package is amd64-only, so use its signed ARM64
+# archive for the app. The CLI is available from the vendor's ARM64 apt repo.
+onepassword_archive_url: >-
+  https://downloads.1password.com/linux/tar/stable/aarch64/1password-latest.tar.gz
+onepassword_signature_url: "{{ onepassword_archive_url }}.sig"
+onepassword_signing_key_url: >-
+  https://downloads.1password.com/linux/keys/1password.asc
+onepassword_signing_key_fingerprint: 3FEF9748469ADBE15DA7CA80AC2D62742012EA22
+onepassword_cli_repository_url: >-
+  https://downloads.1password.com/linux/debian/arm64
+onepassword_debsig_policy_url: >-
+  https://downloads.1password.com/linux/debian/debsig/1password.pol
 
 # Copy only the selected Claude Code configuration below from the Ansible
 # controller when it exists. Personal files remain outside this repository.

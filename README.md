@@ -10,7 +10,8 @@ netplan/systemd-networkd networking, and uses lightweight desktop components.
 - Base OS tools and Parallels Tools build prerequisites
 - zsh, Starship, Neovim, tmux, lazygit, GitHub CLI, and modern CLI utilities
 - Firefox from Mozilla's DEB repository (not Snap)
-- Google Chrome for Linux ARM64, Visual Studio Code ARM64, mise, and Claude Code
+- Google Chrome for Linux ARM64, Visual Studio Code ARM64, 1Password desktop
+  and CLI (`op`), mise, and Claude Code
 - Docker Engine, Buildx, and Compose from Docker's repository
 - Hyprland, greetd/agreety, Ghostty, Waybar, fuzzel, mako, Nautilus, PipeWire,
   portals, clipboard history, locking, and screenshot tools
@@ -162,11 +163,22 @@ Set the same account in `group_vars/all.yml`:
 workstation_user: YOUR_USER
 ```
 
-The shell role creates the configurable `workstation_projects_dir`, which
-defaults to `~/Development/Projects` for the workstation account.
+For checkout-specific overrides, copy `local-vars.example.yml` to
+`local-vars.yml` and edit it. The playbook loads `local-vars.yml` automatically
+when it exists, including through both `make bootstrap` and
+`make apply-playbook`; no `PLAYBOOK_ARGS` override is required. The local file
+is ignored by Git and should not contain secrets.
 
-The main switches live in `group_vars/all.yml`. Firefox, Chrome, VS Code, mise,
-Claude Code, Docker, and Snap removal are enabled by default. Set
+For checkout-specific setup that needs full Ansible tasks rather than variable
+overrides, copy `developer_extra_tasks.example.yml` to
+`developer_extra_tasks.yml`. The playbook loads this ignored task file
+automatically after its standard roles. It can configure private package
+repositories or install software that should not be part of the shared
+workstation definition. Run only these tasks with the `developer_extra_tasks`
+tag when needed.
+
+The main switches live in `group_vars/all.yml`. Firefox, Chrome, VS Code,
+1Password, mise, Claude Code, Docker, and Snap removal are enabled by default. Set
 `remove_snapd: false` if the VM needs any snaps. Useful display settings include
 `hyprland_scale`, `hyprland_main_modifier`, `keyboard_layout`, `ui_font_family`,
 `ui_font_size`, and `ghostty_font_size`. The main modifier defaults to `ALT SUPER`, requiring
@@ -281,6 +293,14 @@ make apply-playbook \
   PLAYBOOK_ARGS="--tags desktop"
 ```
 
+Install or update only 1Password on an existing bootstrapped VM:
+
+```bash
+make apply-playbook \
+  VM_NAME="Ubuntu Workstation" \
+  PLAYBOOK_ARGS="--tags onepassword"
+```
+
 Set `BECOME_ARGS=` for a non-privileged operation such as `--syntax-check`.
 
 To prepare only the Parallels Tools installation media when Tools is absent:
@@ -374,8 +394,11 @@ When experimenting with dynamic resolution, inspect its services with
 
 Ubuntu's package manager owns durable workstation software: Hyprland and its
 desktop services, browsers, VS Code, Docker, shells, editors, CLI utilities, and
-mise itself. Claude Code is the deliberate exception: its vendor-recommended
-native installer owns that application and its updates.
+mise itself. The ARM64 1Password desktop app and Claude Code are deliberate
+exceptions: their vendor-recommended installers own those applications and
+their updates. 1Password's signed stable ARM64 archive is verified against the
+vendor's published signing-key fingerprint before installation. The `op` CLI
+remains apt-owned through 1Password's signed ARM64 repository.
 
 Oh My Zsh and Powerlevel10k are treated as user-shell configuration rather
 than workstation software. The shell role manages their Git checkouts and

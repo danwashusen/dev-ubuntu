@@ -5,6 +5,28 @@
   gather_facts: true
 
   pre_tasks:
+    - name: Inspect optional checkout-specific variables
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/local-vars.yml"
+      register: controller_local_vars_file
+      delegate_to: localhost
+      become: false
+      tags: [always]
+
+    - name: Load optional checkout-specific variables
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/local-vars.yml"
+      when: controller_local_vars_file.stat.isreg | default(false)
+      tags: [always]
+
+    - name: Inspect optional checkout-specific developer tasks
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/developer_extra_tasks.yml"
+      register: controller_developer_extra_tasks_file
+      delegate_to: localhost
+      become: false
+      tags: [always]
+
     - name: Validate required inventory and user placeholders
       ansible.builtin.assert:
         that:
@@ -85,6 +107,14 @@
       tags: [desktop]
 
   post_tasks:
+    - name: Run optional checkout-specific developer tasks
+      ansible.builtin.include_tasks:
+        file: "{{ playbook_dir }}/developer_extra_tasks.yml"
+        apply:
+          tags: [developer_extra_tasks]
+      when: controller_developer_extra_tasks_file.stat.isreg | default(false)
+      tags: [developer_extra_tasks]
+
     - name: Reboot after provisioning
       ansible.builtin.reboot:
         msg: Rebooting after workstation provisioning

@@ -1,0 +1,4 @@
+---
+# Copy this file to local-vars.yml for checkout-specific package additions.
+# local-vars.yml is loaded automatically and ignored by Git.
+developer_extra_packages: []

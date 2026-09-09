@@ -27,6 +27,7 @@
   ansible.builtin.apt:
     name: "{{ developer_extra_packages }}"
     state: present
+    update_cache: true
   when: developer_extra_packages | length > 0
 
 - name: Set workstation user's default shell to zsh
@@ -44,14 +45,6 @@
   loop:
     - .local/bin
     - .local/share/fonts
-
-- name: Create workstation projects directory
-  ansible.builtin.file:
-    path: "{{ workstation_projects_dir }}"
-    state: directory
-    owner: "{{ workstation_user }}"
-    group: "{{ workstation_group }}"
-    mode: "0755"
 
 - name: Provide conventional fd command name
   ansible.builtin.file:
