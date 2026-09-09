@@ -367,9 +367,11 @@ window size immediately after login without depending on a resize event.
 
 With `enable_parallels_hyprland_integration: true`, clipboard and drag-and-drop
 helpers remain Wayland-native. The incompatible combined Parallels autostart is
-disabled. Set `parallels_dynamic_resolution_enabled: true` only to experiment
-with the XWayland `prlcc` bridge; it is disabled by default because the current
-virtio driver rejects the requested mode.
+disabled. A narrowly matched Hyprland window rule also keeps the Parallels
+shared-clipboard helper from entering the tiled layout when input is released.
+Set `parallels_dynamic_resolution_enabled: true` only to experiment with the
+XWayland `prlcc` bridge; it is disabled by default because the current virtio
+driver rejects the requested mode.
 
 Parallels' virtio GPU currently rejects Aquamarine's atomic test commit when
 Hyprland changes the framebuffer size. Although Aquamarine exposes a legacy

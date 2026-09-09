@@ -49,6 +49,22 @@ misc {
     disable_splash_rendering = true
 }
 
+{% if enable_parallels_hyprland_integration | bool %}
+# Parallels exposes its shared-clipboard helper as a Wayland toplevel whenever
+# input is released. Keep that integration surface out of the tiled layout.
+windowrule {
+    name = parallels-shared-clipboard
+    match:initial_title = ^Parallels Shared Clipboard$
+
+    float = on
+    size = 1 1
+    move = -100 -100
+    no_initial_focus = on
+    no_focus = on
+    suppress_event = activate activatefocus
+}
+{% endif %}
+
 # Applications
 bind = $mainMod, RETURN, exec, ghostty
 bind = $mainMod, SPACE, exec, fuzzel
