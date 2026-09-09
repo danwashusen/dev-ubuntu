@@ -71,12 +71,15 @@
   loop:
     - .local/bin
     - .local/share/applications
+    - .local/state/dev-ubuntu
+    - .config/autostart
     - .config/fuzzel
     - .config/ghostty
     - .config/gtk-3.0
     - .config/gtk-4.0
     - .config/hypr
     - .config/mako
+    - .config/systemd/user
     - .config/waybar
 
 - name: Install user desktop configuration
@@ -96,6 +99,75 @@
     - {src: mako.conf.j2, dest: .config/mako/config}
     - {src: waybar.jsonc.j2, dest: .config/waybar/config.jsonc}
     - {src: waybar.css.j2, dest: .config/waybar/style.css}
+
+- name: Install Parallels Hyprland user services
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ workstation_home }}/.config/systemd/user/{{ item.dest }}"
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0644"
+  loop:
+    - src: parallels-dynamic-resolution.service.j2
+      dest: parallels-dynamic-resolution.service
+    - src: parallels-prlcc-x11.service.j2
+      dest: parallels-prlcc-x11.service
+    - src: parallels-prlcp-wayland.service.j2
+      dest: parallels-prlcp-wayland.service
+    - src: parallels-prldnd-wayland.service.j2
+      dest: parallels-prldnd-wayland.service
+  when: enable_parallels_hyprland_integration | bool
+  tags: [parallels_dynamic_resolution]
+
+- name: Disable the incompatible stock Parallels desktop autostart
+  ansible.builtin.template:
+    src: parallels-prlcc.desktop.j2
+    dest: "{{ workstation_home }}/.config/autostart/prlcc.desktop"
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0644"
+  when: enable_parallels_hyprland_integration | bool
+  tags: [parallels_dynamic_resolution]
+
+- name: Install the Parallels Hyprland dynamic-resolution bridge
+  ansible.builtin.template:
+    src: parallels-hyprland-dynamic-resolution.sh.j2
+    dest: >-
+      {{ workstation_home }}/.local/bin/parallels-hyprland-dynamic-resolution
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0755"
+  when:
+    - enable_parallels_hyprland_integration | bool
+    - parallels_dynamic_resolution_enabled | bool
+  tags: [parallels_dynamic_resolution]
+
+- name: Initialize the runtime Parallels monitor rule
+  ansible.builtin.template:
+    src: parallels-monitor.conf.j2
+    dest: >-
+      {{ workstation_home }}/.local/state/dev-ubuntu/parallels-monitor.conf
+    force: false
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0644"
+  when:
+    - enable_parallels_hyprland_integration | bool
+    - parallels_dynamic_resolution_enabled | bool
+  tags: [parallels_dynamic_resolution]
+
+- name: Install the fixed Parallels monitor rule
+  ansible.builtin.template:
+    src: parallels-monitor.conf.j2
+    dest: >-
+      {{ workstation_home }}/.local/state/dev-ubuntu/parallels-monitor.conf
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0644"
+  when:
+    - enable_parallels_hyprland_integration | bool
+    - not (parallels_dynamic_resolution_enabled | bool)
+  tags: [parallels_dynamic_resolution]
 
 - name: Install VM-compatible Ghostty launcher
   ansible.builtin.template:

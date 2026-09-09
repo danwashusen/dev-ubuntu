@@ -208,6 +208,15 @@ The shell role also conditionally copies the controller's `.gitconfig` and
 are skipped. Control this with `sync_controller_git_config`,
 `controller_git_config_dir`, and `controller_git_config_files`.
 
+The shell role can also copy the controller's `~/.ssh/id_rsa` and matching
+public key directly into the workstation user's `~/.ssh`, with `0700`
+directory and `0600` private-key permissions. The key is read from the
+controller only while Ansible runs and is never stored in this repository.
+Control this with `sync_controller_ssh_key`, `controller_ssh_key_dir`, and
+`controller_ssh_key_files`. This duplicates a private credential into the VM;
+set the switch to `false` when agent forwarding or a dedicated VM key is
+preferred.
+
 The developer-apps role also conditionally copies these items from the
 controller's `~/.claude`: `hooks/block-commands.sh`,
 `statusline-command.sh`, `output-styles`, and `settings.json`.
@@ -249,6 +258,31 @@ Roles are independently taggable. For example:
 ansible-playbook -i inventory.ini site.yml --ask-become-pass --tags shell,developer_apps
 ```
 
+For a VM created by this project's bootstrap workflow, the Make target can
+discover its address and build a private temporary inventory automatically:
+
+```bash
+make apply-playbook VM_NAME="Ubuntu Workstation"
+```
+
+The target starts the VM when necessary, prefers the IPv4 address reported by
+Parallels, falls back to the normalized `.local` hostname, waits for key-based
+SSH, and runs `site.yml` with `--ask-become-pass`. It defaults to the current
+macOS username and the same preferred SSH-key order as bootstrap. Override
+`GUEST_USER`, `SSH_HOST`, or `SSH_PUBLIC_KEY` when the VM was created with
+non-default values.
+
+Add playbook options with `PLAYBOOK_ARGS`; the default privilege-escalation
+prompt remains in place:
+
+```bash
+make apply-playbook \
+  VM_NAME="Ubuntu Workstation" \
+  PLAYBOOK_ARGS="--tags desktop"
+```
+
+Set `BECOME_ARGS=` for a non-privileged operation such as `--syntax-check`.
+
 To prepare only the Parallels Tools installation media when Tools is absent:
 
 ```bash
@@ -265,6 +299,14 @@ To synchronize only the selected Git configuration:
 
 ```bash
 ansible-playbook -i inventory.ini site.yml --ask-become-pass --tags git_config
+```
+
+To synchronize only the selected SSH key into a bootstrapped VM:
+
+```bash
+make apply-playbook \
+  VM_NAME="Ubuntu Workstation" \
+  PLAYBOOK_ARGS="--tags ssh_keys"
 ```
 
 A standalone playbook run does not reboot by default. Reboot manually when
@@ -295,6 +337,38 @@ so the running kernel and installed headers agree.
 Wayland integration in Parallels can vary by Parallels Tools release. Test
 dynamic resolution, shared clipboard, pointer behaviour, audio, and shared
 folders before treating the VM as finished.
+
+Parallels Tools publishes resized virtio display modes, but its Wayland display
+client targets GNOME/Mutter rather than Hyprland. Parallels v27 and Ubuntu's
+Hyprland 0.53 currently reject runtime modesets, including ordinary advertised
+resolutions. The safe default is therefore a fixed `1920x1200@59.88` startup
+mode, controlled by `parallels_hyprland_fixed_mode`. This gives the VM a useful
+window size immediately after login without depending on a resize event.
+
+With `enable_parallels_hyprland_integration: true`, clipboard and drag-and-drop
+helpers remain Wayland-native. The incompatible combined Parallels autostart is
+disabled. Set `parallels_dynamic_resolution_enabled: true` only to experiment
+with the XWayland `prlcc` bridge; it is disabled by default because the current
+virtio driver rejects the requested mode.
+
+Parallels' virtio GPU currently rejects Aquamarine's atomic test commit when
+Hyprland changes the framebuffer size. Although Aquamarine exposes a legacy
+DRM path, `hyprland_use_legacy_drm` remains `false`: enabling it makes Ubuntu's
+Hyprland 0.53 session exit during startup on Parallels v27. A failed dynamic
+resize is preferable to a graphical login loop. Changing this experimental
+setting requires a new graphical login (or a reboot).
+
+Verify the fixed mode and the enabled integration helpers inside the guest:
+
+```bash
+hyprctl monitors all
+systemctl --user status parallels-prlcp-wayland.service
+systemctl --user status parallels-prldnd-wayland.service
+```
+
+When experimenting with dynamic resolution, inspect its services with
+`systemctl --user status parallels-prlcc-x11.service` and
+`systemctl --user status parallels-dynamic-resolution.service`.
 
 ## Software ownership boundary
 

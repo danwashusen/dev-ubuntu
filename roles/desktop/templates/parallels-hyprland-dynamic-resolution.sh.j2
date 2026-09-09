@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+output={{ parallels_hyprland_output | quote }}
+scale={{ hyprland_scale | quote }}
+poll_interval={{ parallels_dynamic_resolution_poll_interval | quote }}
+state_dir="${XDG_STATE_HOME:-${HOME}/.local/state}/dev-ubuntu"
+monitor_rule="${state_dir}/parallels-monitor.conf"
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/${UID}}"
+
+find_hyprland_instance() {
+  local socket
+
+  if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" &&
+    -S "${runtime_dir}/hypr/${HYPRLAND_INSTANCE_SIGNATURE}/.socket.sock" ]]; then
+    export HYPRLAND_INSTANCE_SIGNATURE
+    return 0
+  fi
+
+  HYPRLAND_INSTANCE_SIGNATURE=""
+  for socket in "${runtime_dir}"/hypr/*/.socket.sock; do
+    [[ -S "$socket" ]] || continue
+    HYPRLAND_INSTANCE_SIGNATURE=${socket%/.socket.sock}
+    HYPRLAND_INSTANCE_SIGNATURE=${HYPRLAND_INSTANCE_SIGNATURE##*/}
+    export HYPRLAND_INSTANCE_SIGNATURE
+    return 0
+  done
+  return 1
+}
+
+desired_mode() {
+  local connector
+  local mode
+  local width
+  local height
+
+  for connector in /sys/class/drm/card*-"${output}"; do
+    [[ -r "${connector}/modes" ]] || continue
+    IFS= read -r mode <"${connector}/modes" || continue
+    if [[ "$mode" =~ ^([0-9]{3,5})x([0-9]{3,5})$ ]]; then
+      width=${BASH_REMATCH[1]}
+      height=${BASH_REMATCH[2]}
+      if ((width >= 800 && height >= 600 && width <= 8192 && height <= 8192)); then
+        printf '%s\n' "$mode"
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
+current_mode() {
+  find_hyprland_instance || return 1
+  XDG_RUNTIME_DIR="$runtime_dir" hyprctl monitors all 2>/dev/null |
+    awk -v output="$output" '
+      $1 == "Monitor" && $2 == output { found = 1; next }
+      found && $1 == "Monitor" { exit }
+      found && $1 ~ /^[0-9]+x[0-9]+@/ {
+        split($1, mode, "@"); print mode[1]; exit
+      }
+    '
+}
+
+apply_mode() {
+  local mode="$1"
+  local active_mode
+  local attempt
+  local temporary_rule
+
+  mkdir -p "$state_dir"
+  temporary_rule=$(mktemp "${state_dir}/.parallels-monitor.XXXXXX")
+  printf 'monitor = %s, %s@60, auto, %s\n' "$output" "$mode" "$scale" \
+    >"$temporary_rule"
+  chmod 0644 "$temporary_rule"
+  mv -f "$temporary_rule" "$monitor_rule"
+
+  find_hyprland_instance || return 1
+  XDG_RUNTIME_DIR="$runtime_dir" hyprctl reload >/dev/null
+  attempt=0
+  while ((attempt < 30)); do
+    ((attempt += 1))
+    sleep 0.1
+    active_mode=$(current_mode || true)
+    [[ "$active_mode" == "$mode" ]] && return 0
+  done
+  return 1
+}
+
+last_candidate=""
+last_attempted=""
+stable_reads=0
+
+while true; do
+  candidate=$(desired_mode || true)
+  if [[ -z "$candidate" ]]; then
+    sleep 1
+    continue
+  fi
+
+  if [[ "$candidate" == "$last_candidate" ]]; then
+    ((stable_reads < 2)) && ((stable_reads += 1))
+  else
+    last_candidate="$candidate"
+    last_attempted=""
+    stable_reads=0
+  fi
+
+  if ((stable_reads >= 2)); then
+    active_mode=$(current_mode || true)
+    if [[ "$active_mode" != "$candidate" &&
+      "$last_attempted" != "$candidate" ]]; then
+      last_attempted="$candidate"
+      if apply_mode "$candidate"; then
+        printf 'Applied Parallels resolution %s to %s\n' "$candidate" "$output"
+      else
+        printf 'Could not apply Parallels resolution %s; waiting for a new size\n' \
+          "$candidate" >&2
+      fi
+    fi
+  fi
+
+  sleep "$poll_interval"
+done

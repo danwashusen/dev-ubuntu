@@ -2,5 +2,9 @@
 vt = 7
 
 [default_session]
+{% if hyprland_use_legacy_drm | bool %}
+command = "agreety --cmd /usr/bin/env AQ_NO_ATOMIC=1 /usr/bin/start-hyprland"
+{% else %}
 command = "agreety --cmd /usr/bin/start-hyprland"
+{% endif %}
 user = "_greetd"

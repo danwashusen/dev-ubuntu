@@ -1,7 +1,19 @@
 monitor = , preferred, auto, {{ hyprland_scale }}
+{% if enable_parallels_hyprland_integration | bool %}
+source = {{ workstation_home }}/.local/state/dev-ubuntu/parallels-monitor.conf
+{% endif %}
 
 $mainMod = {{ hyprland_main_modifier }}
 
+{% if enable_parallels_hyprland_integration | bool %}
+exec-once = systemctl --user import-environment DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
+exec-once = systemctl --user daemon-reload
+{% if parallels_dynamic_resolution_enabled | bool %}
+exec-once = systemctl --user start parallels-prlcc-x11.service parallels-dynamic-resolution.service parallels-prlcp-wayland.service parallels-prldnd-wayland.service
+{% else %}
+exec-once = systemctl --user start parallels-prlcp-wayland.service parallels-prldnd-wayland.service
+{% endif %}
+{% endif %}
 exec-once = waybar
 exec-once = mako
 exec-once = systemctl --user start hyprpolkitagent.service

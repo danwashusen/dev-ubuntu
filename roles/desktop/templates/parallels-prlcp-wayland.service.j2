@@ -1,0 +1,10 @@
+[Unit]
+Description=Parallels shared clipboard for Wayland
+ConditionFileIsExecutable=/usr/bin/prlcp
+
+[Service]
+Type=simple
+Environment=GDK_BACKEND=wayland
+ExecStart=/usr/bin/prlcp
+Restart=on-failure
+RestartSec=1

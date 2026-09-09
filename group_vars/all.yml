@@ -45,6 +45,7 @@ bootstrap_passwordless_sudo_path: /etc/sudoers.d/99-dev-ubuntu-bootstrap
 sync_controller_powerlevel10k_config: true
 sync_controller_powerlevel10k_fonts: true
 sync_controller_git_config: true
+sync_controller_ssh_key: true
 controller_powerlevel10k_config_path: >-
   {{ lookup('ansible.builtin.env', 'HOME') }}/.p10k.zsh
 controller_powerlevel10k_font_dir: >-
@@ -53,6 +54,12 @@ controller_git_config_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}"
 controller_git_config_files:
   - .gitconfig
   - .gitconfig-higeia
+controller_ssh_key_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}/.ssh"
+controller_ssh_key_files:
+  - path: id_rsa
+    mode: "0600"
+  - path: id_rsa.pub
+    mode: "0644"
 
 oh_my_zsh_version: master
 powerlevel10k_version: master
@@ -99,6 +106,19 @@ remove_snapd: true
 hyprland_scale: 1
 # Require Option+Command together for Hyprland shortcuts in Parallels.
 hyprland_main_modifier: ALT SUPER
+
+# Parallels publishes resized virtio modes, but its Linux Wayland client only
+# knows how to configure GNOME/Mutter. Bridge those modes into Hyprland.
+enable_parallels_hyprland_integration: true
+parallels_hyprland_output: Virtual-1
+# Parallels v27 publishes live sizes, but its virtio GPU rejects Hyprland's
+# runtime modesets. Use a practical fixed startup size instead.
+parallels_dynamic_resolution_enabled: false
+parallels_hyprland_fixed_mode: 1920x1200@59.88
+parallels_dynamic_resolution_poll_interval: 0.25
+# The legacy DRM path currently makes Hyprland 0.53 exit on Parallels v27.
+# Keep atomic modesetting enabled so a failed resize cannot break login.
+hyprland_use_legacy_drm: false
 
 # Use Ubuntu's packaged JetBrains Mono throughout the desktop UI.
 ui_font_family: JetBrains Mono

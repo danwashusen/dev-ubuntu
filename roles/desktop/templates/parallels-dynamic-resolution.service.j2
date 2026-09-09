@@ -1,0 +1,9 @@
+[Unit]
+Description=Apply Parallels dynamic resolution to Hyprland
+ConditionFileIsExecutable=%h/.local/bin/parallels-hyprland-dynamic-resolution
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/parallels-hyprland-dynamic-resolution
+Restart=on-failure
+RestartSec=2

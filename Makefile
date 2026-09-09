@@ -21,11 +21,13 @@ SSH_HOST ?=
 SSH_WAIT_TIMEOUT ?= 2700
 RUN_ANSIBLE ?= yes
 ANSIBLE_PLAYBOOK ?=
+BECOME_ARGS ?= --ask-become-pass
+PLAYBOOK_ARGS ?=
 
-.PHONY: help bootstrap images vms
+.PHONY: help bootstrap apply-playbook images vms
 
 help: ## Show available targets and overrides
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 bootstrap: ## Interactively create an ARM64 Ubuntu VM from an ISO
 	@./scripts/bootstrap-vm.sh \
@@ -49,6 +51,17 @@ bootstrap: ## Interactively create an ARM64 Ubuntu VM from an ISO
 		--ssh-timeout "$(SSH_WAIT_TIMEOUT)" \
 		--run-ansible "$(RUN_ANSIBLE)" \
 		--ansible "$(ANSIBLE_PLAYBOOK)"
+
+apply-playbook: ## Apply site.yml to an existing bootstrapped Parallels VM
+	@./scripts/apply-playbook.sh \
+		--prlctl "$(PRLCTL)" \
+		--name "$(VM_NAME)" \
+		--guest-user "$(GUEST_USER)" \
+		--ssh-host "$(SSH_HOST)" \
+		--ssh-key "$(SSH_PUBLIC_KEY)" \
+		--ssh-timeout "$(SSH_WAIT_TIMEOUT)" \
+		--ansible "$(ANSIBLE_PLAYBOOK)" \
+		-- $(BECOME_ARGS) $(PLAYBOOK_ARGS)
 
 images: ## List discovered Ubuntu Server ARM64 ISO images, newest first
 	@./scripts/bootstrap-vm.sh --downloads "$(DOWNLOADS_DIR)" --list-images

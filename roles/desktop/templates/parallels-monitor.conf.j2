@@ -1,0 +1,5 @@
+{% if parallels_dynamic_resolution_enabled | bool %}
+monitor = {{ parallels_hyprland_output }}, preferred, auto, {{ hyprland_scale }}
+{% else %}
+monitor = {{ parallels_hyprland_output }}, {{ parallels_hyprland_fixed_mode }}, auto, {{ hyprland_scale }}
+{% endif %}

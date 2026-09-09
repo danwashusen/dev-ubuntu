@@ -153,6 +153,40 @@
         label: "{{ item.item }}"
       when: item.stat.isreg | default(false)
 
+- name: Sync selected SSH key from the controller
+  tags: [ssh_keys]
+  when: sync_controller_ssh_key | bool
+  block:
+    - name: Create workstation SSH directory
+      ansible.builtin.file:
+        path: "{{ workstation_home }}/.ssh"
+        state: directory
+        owner: "{{ workstation_user }}"
+        group: "{{ workstation_group }}"
+        mode: "0700"
+
+    - name: Inspect selected controller SSH key files
+      ansible.builtin.stat:
+        path: "{{ controller_ssh_key_dir }}/{{ item.path }}"
+      loop: "{{ controller_ssh_key_files }}"
+      loop_control:
+        label: "{{ item.path }}"
+      register: controller_ssh_key_stats
+      delegate_to: localhost
+      become: false
+
+    - name: Copy available controller SSH key files
+      ansible.builtin.copy:
+        src: "{{ controller_ssh_key_dir }}/{{ item.item.path }}"
+        dest: "{{ workstation_home }}/.ssh/{{ item.item.path }}"
+        owner: "{{ workstation_user }}"
+        group: "{{ workstation_group }}"
+        mode: "{{ item.item.mode }}"
+      loop: "{{ controller_ssh_key_stats.results }}"
+      loop_control:
+        label: "{{ item.item.path }}"
+      when: item.stat.isreg | default(false)
+
 - name: Sync controller Powerlevel10k configuration
   ansible.builtin.copy:
     src: "{{ controller_powerlevel10k_config_path }}"

@@ -111,3 +111,75 @@ provision_run_ansible() (
   printf 'Connect with: ssh -i %q %q\n' \
     "$ssh_identity_file" "${guest_user}@${ssh_host}"
 )
+
+# Apply site.yml to an existing workstation with an ephemeral inventory. Unlike
+# the bootstrap path, this keeps the playbook defaults for Tools installation
+# and reboot behavior and forwards the caller's ansible-playbook arguments.
+provision_apply_playbook() (
+  set -euo pipefail
+
+  local provision_project_dir="$1"
+  local ansible_playbook_path="$2"
+  local ssh_host="$3"
+  local guest_user="$4"
+  local ssh_public_key_file="$5"
+  local vm_name="$6"
+  shift 6
+
+  local playbook_args=("$@")
+  local temporary_dir
+  local inventory_file
+  local extra_vars_file
+  local known_hosts_file
+  local ssh_identity_file
+  local ssh_common_args
+
+  temporary_dir=$(mktemp -d "${TMPDIR:-/tmp}/dev-ubuntu-apply.XXXXXX")
+  inventory_file="${temporary_dir}/inventory.yml"
+  extra_vars_file="${temporary_dir}/extra-vars.yml"
+  known_hosts_file="${temporary_dir}/known_hosts"
+  ssh_identity_file=$(autoinstall_ssh_identity_file "$ssh_public_key_file")
+  ssh_common_args="-oStrictHostKeyChecking=accept-new -oUserKnownHostsFile=${known_hosts_file} -oGlobalKnownHostsFile=/dev/null -oIdentitiesOnly=yes"
+
+  # shellcheck disable=SC2329  # Invoked indirectly by the EXIT trap.
+  provision_apply_cleanup() {
+    rm -rf "$temporary_dir"
+  }
+  trap provision_apply_cleanup EXIT
+  touch "$known_hosts_file"
+  chmod 0600 "$known_hosts_file"
+
+  {
+    printf 'all:\n'
+    printf '  children:\n'
+    printf '    workstation:\n'
+    printf '      hosts:\n'
+    printf '        apply-target:\n'
+    printf '          ansible_host: %s\n' \
+      "$(autoinstall_json_string "$ssh_host")"
+    printf '          ansible_user: %s\n' \
+      "$(autoinstall_json_string "$guest_user")"
+    printf '          ansible_ssh_private_key_file: %s\n' \
+      "$(autoinstall_json_string "$ssh_identity_file")"
+    printf '          ansible_ssh_common_args: %s\n' \
+      "$(autoinstall_json_string "$ssh_common_args")"
+  } >"$inventory_file"
+
+  {
+    printf 'workstation_user: %s\n' \
+      "$(autoinstall_json_string "$guest_user")"
+    printf 'parallels_vm_name: %s\n' \
+      "$(autoinstall_json_string "$vm_name")"
+  } >"$extra_vars_file"
+
+  chmod 0600 "$inventory_file" "$extra_vars_file"
+
+  printf '\nApplying site.yml to %s at %s@%s...\n' \
+    "$vm_name" "$guest_user" "$ssh_host"
+  ANSIBLE_CONFIG="${provision_project_dir}/ansible.cfg" \
+    "$ansible_playbook_path" \
+      --inventory "$inventory_file" \
+      "${playbook_args[@]}" \
+      "${provision_project_dir}/site.yml" \
+      --extra-vars "@${extra_vars_file}"
+)
