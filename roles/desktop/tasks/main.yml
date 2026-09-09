@@ -1,0 +1,139 @@
+---
+- name: Install lean Hyprland desktop packages
+  ansible.builtin.apt:
+    name:
+      - adwaita-icon-theme
+      - cliphist
+      - fonts-font-awesome
+      - fonts-jetbrains-mono
+      - fonts-noto-color-emoji
+      - fuzzel
+      - ghostty
+      - greetd
+      - grim
+      - hyprland
+      - hyprland-qtutils
+      - hyprpolkitagent
+      - mako-notifier
+      - nautilus
+      - pavucontrol
+      - pipewire
+      - pipewire-pulse
+      - playerctl
+      - polkitd
+      - qt6-wayland
+      - rtkit
+      - slurp
+      - swayidle
+      - swaylock
+      - waybar
+      - wireplumber
+      - wl-clipboard
+      - xdg-desktop-portal
+      - xdg-desktop-portal-gtk
+      - xdg-desktop-portal-hyprland
+      - xdg-user-dirs
+      - xdg-utils
+      - xwayland
+    state: present
+    install_recommends: false
+
+- name: Remove conflicting GNOME desktop components
+  ansible.builtin.apt:
+    name:
+      - gdm3
+      - gnome-control-center
+      - gnome-control-center-data
+      - gnome-control-center-faces
+      - gnome-remote-desktop
+      - gnome-session-bin
+      - gnome-session-common
+      - gnome-shell
+      - gnome-shell-common
+      - gnome-shell-ubuntu-extensions
+      - modemmanager
+      - network-manager
+      - network-manager-l10n
+      - network-manager-pptp
+      - nm-connection-editor
+      - ubuntu-session
+      - xdg-desktop-portal-gnome
+    state: absent
+    purge: true
+
+- name: Create desktop configuration directories
+  ansible.builtin.file:
+    path: "{{ workstation_home }}/{{ item }}"
+    state: directory
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0755"
+  loop:
+    - .local/bin
+    - .local/share/applications
+    - .config/fuzzel
+    - .config/ghostty
+    - .config/hypr
+    - .config/mako
+    - .config/waybar
+
+- name: Install user desktop configuration
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ workstation_home }}/{{ item.dest }}"
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0644"
+  loop:
+    - {src: fuzzel.ini.j2, dest: .config/fuzzel/fuzzel.ini}
+    - {src: ghostty.desktop.j2, dest: .local/share/applications/com.mitchellh.ghostty.desktop}
+    - {src: ghostty.conf.j2, dest: .config/ghostty/config}
+    - {src: hyprland.conf.j2, dest: .config/hypr/hyprland.conf}
+    - {src: mako.conf.j2, dest: .config/mako/config}
+    - {src: waybar.jsonc.j2, dest: .config/waybar/config.jsonc}
+    - {src: waybar.css.j2, dest: .config/waybar/style.css}
+
+- name: Install VM-compatible Ghostty launcher
+  ansible.builtin.template:
+    src: ghostty-wrapper.sh.j2
+    dest: "{{ workstation_home }}/.local/bin/ghostty"
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0755"
+
+- name: Configure greetd
+  ansible.builtin.template:
+    src: greetd.toml.j2
+    dest: /etc/greetd/config.toml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart greetd
+
+- name: Inspect the registered display manager
+  ansible.builtin.stat:
+    path: /etc/systemd/system/display-manager.service
+    follow: false
+  register: desktop_display_manager
+
+- name: Remove stale GDM display manager registration
+  ansible.builtin.file:
+    path: /etc/systemd/system/display-manager.service
+    state: absent
+  when:
+    - desktop_display_manager.stat.islnk | default(false)
+    - "'gdm' in (desktop_display_manager.stat.lnk_source | default(''))"
+
+- name: Enable and start greetd
+  ansible.builtin.systemd:
+    name: greetd
+    enabled: true
+    force: true
+    state: started
+
+- name: Use graphical boot target
+  ansible.builtin.file:
+    src: /lib/systemd/system/graphical.target
+    dest: /etc/systemd/system/default.target
+    state: link
+    force: true

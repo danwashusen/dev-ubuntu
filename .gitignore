@@ -1,0 +1,4 @@
+.ansible/
+*.retry
+.DS_Store
+

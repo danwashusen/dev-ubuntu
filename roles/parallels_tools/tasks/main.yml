@@ -1,0 +1,157 @@
+---
+- name: Inspect Parallels Tools package in the guest
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - --show
+      - "--showformat=${Status}"
+      - parallels-tools
+  register: parallels_tools_package
+  changed_when: false
+  failed_when: false
+
+- name: Inspect Parallels Tools executable in the guest
+  ansible.builtin.stat:
+    path: /usr/bin/prltoolsd
+  register: parallels_tools_executable
+
+- name: Record whether Parallels Tools is installed
+  ansible.builtin.set_fact:
+    parallels_tools_installed: >-
+      {{
+        (parallels_tools_package.rc == 0 and
+         "install ok installed" in parallels_tools_package.stdout) or
+        (parallels_tools_executable.stat.executable | default(false))
+      }}
+
+- name: Make Parallels Tools installation media available
+  when: not parallels_tools_installed | bool
+  block:
+    - name: Inspect the guest CD label
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/blkid
+          - --match-tag
+          - LABEL
+          - --output
+          - value
+          - /dev/sr0
+      register: parallels_tools_cd_label
+      changed_when: false
+      failed_when: false
+
+    - name: Inspect the bundled Parallels Tools ISO on the controller
+      ansible.builtin.stat:
+        path: "{{ parallels_tools_iso_path }}"
+      register: parallels_tools_iso
+      when: parallels_tools_cd_label.stdout != "Parallels Tools"
+      delegate_to: localhost
+      become: false
+
+    - name: Verify the bundled Parallels Tools ISO is available
+      ansible.builtin.assert:
+        that:
+          - parallels_tools_iso.stat.isreg | default(false)
+        fail_msg: >-
+          The ARM64 Parallels Tools ISO was not found at
+          {{ parallels_tools_iso_path }} on the Ansible controller.
+      when: parallels_tools_cd_label.stdout != "Parallels Tools"
+      delegate_to: localhost
+      become: false
+
+    - name: Attach the bundled Parallels Tools ISO to the VM
+      ansible.builtin.command:
+        argv:
+          - "{{ parallels_prlctl_path }}"
+          - set
+          - "{{ parallels_vm_name }}"
+          - --device-set
+          - cdrom0
+          - --image
+          - "{{ parallels_tools_iso_path }}"
+          - --connect
+      when: parallels_tools_cd_label.stdout != "Parallels Tools"
+      delegate_to: localhost
+      become: false
+      changed_when: true
+
+    - name: Wait for the Parallels Tools disc in the guest
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/blkid
+          - --match-tag
+          - LABEL
+          - --output
+          - value
+          - /dev/sr0
+      register: parallels_tools_cd_ready
+      until: parallels_tools_cd_ready.stdout == "Parallels Tools"
+      retries: 15
+      delay: 1
+      changed_when: false
+      failed_when: false
+
+    - name: Find an existing Parallels Tools disc mount
+      ansible.builtin.command:
+        argv:
+          - findmnt
+          - --raw
+          - --noheadings
+          - --source
+          - /dev/sr0
+          - --output
+          - TARGET
+      register: parallels_tools_existing_mounts
+      changed_when: false
+      failed_when: false
+
+    - name: Create the Parallels Tools mount point
+      ansible.builtin.file:
+        path: "{{ parallels_tools_mount_path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: parallels_tools_existing_mounts.stdout_lines | length == 0
+
+    # This is intentionally a temporary, non-fstab mount; keeping it as a
+    # command avoids adding ansible.posix solely for installer media.
+    - name: Mount the Parallels Tools disc # noqa command-instead-of-module
+      ansible.builtin.command:
+        argv:
+          - mount
+          - --options
+          - ro,exec
+          - /dev/sr0
+          - "{{ parallels_tools_mount_path }}"
+      when: parallels_tools_existing_mounts.stdout_lines | length == 0
+      changed_when: true
+
+    - name: Record the Parallels Tools media path
+      ansible.builtin.set_fact:
+        parallels_tools_media_path: >-
+          {{
+            (parallels_tools_existing_mounts.stdout_lines | first)
+            if (parallels_tools_existing_mounts.stdout_lines | length > 0)
+            else parallels_tools_mount_path
+          }}
+
+    - name: Inspect the Parallels Tools installer
+      ansible.builtin.stat:
+        path: "{{ parallels_tools_media_path }}/install"
+      register: parallels_tools_installer
+
+    - name: Verify the Parallels Tools installer is accessible
+      ansible.builtin.assert:
+        that:
+          - parallels_tools_installer.stat.isreg | default(false)
+        fail_msg: >-
+          The Parallels Tools disc is present at
+          {{ parallels_tools_media_path }}, but its installer was not found.
+
+    - name: Report the Parallels Tools installer location
+      ansible.builtin.debug:
+        msg: >-
+          Parallels Tools is not installed. Its installer is available at
+          {{ parallels_tools_media_path }}/install; run it interactively with
+          sudo, then reboot the VM.

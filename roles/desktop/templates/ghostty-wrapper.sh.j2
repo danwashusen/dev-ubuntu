@@ -1,0 +1,6 @@
+#!/bin/sh
+{% if ghostty_force_software_rendering | bool %}
+# Parallels virgl does not expose the OpenGL 4.3 required by Ghostty.
+export LIBGL_ALWAYS_SOFTWARE=1
+{% endif %}
+exec /usr/bin/ghostty "$@"

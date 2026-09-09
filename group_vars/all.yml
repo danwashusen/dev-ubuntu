@@ -1,0 +1,104 @@
+---
+workstation_user: danwas
+
+# Ubuntu 26.04 defaults to sudo-rs. Ansible 2.13 cannot recognize its password
+# prompt, so use Ubuntu's supported sudo.ws compatibility executable for become.
+ansible_become_exe: /usr/bin/sudo.ws
+
+workstation_timezone: Australia/Melbourne
+keyboard_layout: us
+
+# Correct VM clock drift from the Ansible controller before apt validates
+# repository timestamps. This commonly matters after a VM has been suspended.
+maximum_clock_skew_seconds: 60
+
+# A full upgrade is appropriate for a newly installed VM. Disable it when a
+# maintenance window must not include a distribution package upgrade.
+perform_full_upgrade: true
+
+install_firefox: true
+install_chrome: true
+install_vscode: true
+install_mise: true
+install_claude_code: true
+install_docker: true
+install_oh_my_zsh: true
+install_powerlevel10k: true
+
+# When Parallels Tools is absent in the guest, attach the host-bundled ARM ISO
+# and mount it in Ubuntu. The vendor installer remains an interactive step.
+prepare_parallels_tools_media: true
+parallels_vm_name: Dev Ubuntu
+parallels_prlctl_path: /usr/local/bin/prlctl
+parallels_tools_iso_path: "/Applications/Parallels Desktop.app/Contents/Resources/Tools/prl-tools-lin-arm.iso"
+parallels_tools_mount_path: /media/cdrom0
+
+# Keep .zshrc Linux-specific, but reuse the portable prompt configuration and
+# recommended fonts from the controller when they are available.
+sync_controller_powerlevel10k_config: true
+sync_controller_powerlevel10k_fonts: true
+sync_controller_git_config: true
+controller_powerlevel10k_config_path: >-
+  {{ lookup('ansible.builtin.env', 'HOME') }}/.p10k.zsh
+controller_powerlevel10k_font_dir: >-
+  {{ lookup('ansible.builtin.env', 'HOME') }}/Library/Fonts
+controller_git_config_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}"
+controller_git_config_files:
+  - .gitconfig
+  - .gitconfig-higeia
+
+oh_my_zsh_version: master
+powerlevel10k_version: master
+oh_my_zsh_plugins:
+  - git
+  - aws
+  - ansible
+  - docker
+  - gradle
+  - npm
+  - terraform
+  - zoxide
+  - fzf
+
+# The native Claude Code installer accepts "stable", "latest", or a version.
+claude_code_channel: stable
+
+# Copy only the selected Claude Code configuration below from the Ansible
+# controller when it exists. Personal files remain outside this repository.
+sync_controller_claude_config: true
+controller_user_home: "{{ lookup('ansible.builtin.env', 'HOME') }}"
+controller_claude_config_dir: "{{ controller_user_home }}/.claude"
+controller_claude_config_files:
+  - path: hooks/block-commands.sh
+    mode: "0755"
+  - path: statusline-command.sh
+    mode: "0755"
+  - path: settings.json
+    mode: "0600"
+controller_claude_config_directories:
+  - output-styles
+
+# Rewrite the controller's absolute home path in the few copied files known to
+# contain machine-specific paths. Missing files are ignored.
+controller_claude_path_rewrite_files:
+  - hooks/block-commands.sh
+  - settings.json
+
+# This workstation uses native DEB packages for its browsers. A fresh Server
+# install therefore has no Snap requirement. Set false if you use other snaps.
+remove_snapd: true
+
+# Start at 1. Retina/Parallels displays may be more comfortable at 1.5 or 2.
+hyprland_scale: 1
+# Require Option+Command together for Hyprland shortcuts in Parallels.
+hyprland_main_modifier: ALT SUPER
+ghostty_font_size: 13
+ghostty_font_family: MesloLGS NF
+# Parallels virgl exposes less than the OpenGL 4.3 required by Ghostty.
+ghostty_force_software_rendering: true
+
+# Reboot remains an explicit choice by default.
+reboot_after_provision: false
+
+# Add machine-specific apt packages without changing a role.
+developer_extra_packages: []

@@ -1,0 +1,55 @@
+{% if install_oh_my_zsh | bool and install_powerlevel10k | bool %}
+# Enable Powerlevel10k instant prompt. Keep this near the top of the file.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+    source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+{% endif %}
+export PATH="$HOME/.local/bin:$PATH"
+
+export EDITOR=nvim
+export VISUAL=nvim
+
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=10000
+SAVEHIST=10000
+
+setopt HIST_IGNORE_DUPS
+setopt SHARE_HISTORY
+setopt AUTO_CD
+
+{% if install_oh_my_zsh | bool %}
+export ZSH="$HOME/.oh-my-zsh"
+{% if install_powerlevel10k | bool %}
+ZSH_THEME="powerlevel10k/powerlevel10k"
+{% else %}
+ZSH_THEME="robbyrussell"
+{% endif %}
+zstyle ':omz:update' mode disabled
+plugins=(
+{% for plugin in oh_my_zsh_plugins %}
+    {{ plugin }}
+{% endfor %}
+)
+source "$ZSH/oh-my-zsh.sh"
+{% else %}
+autoload -Uz compinit
+compinit
+eval "$(starship init zsh)"
+{% endif %}
+
+eval "$(direnv hook zsh)"
+
+if (( $+commands[mise] )); then
+    eval "$(mise activate zsh)"
+fi
+
+alias vi=nvim
+alias vim=nvim
+alias ll='ls -lah'
+alias gs='git status'
+alias gd='git diff'
+
+{% if install_oh_my_zsh | bool and install_powerlevel10k | bool %}
+[[ ! -f "$HOME/.p10k.zsh" ]] || source "$HOME/.p10k.zsh"
+{% endif %}

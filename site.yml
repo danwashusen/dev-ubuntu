@@ -1,0 +1,91 @@
+---
+- name: Provision lean Ubuntu ARM64 developer workstation
+  hosts: workstation
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Validate required inventory and user placeholders
+      ansible.builtin.assert:
+        that:
+          - workstation_user != "YOUR_USER"
+          - ansible_user != "YOUR_USER"
+          - ansible_host != "YOUR_HOST_OR_IP"
+        fail_msg: >-
+          Replace the workstation user and host placeholders in inventory.ini
+          and group_vars/all.yml before running this playbook.
+      tags: [always]
+
+    - name: Validate target operating system and architecture
+      ansible.builtin.assert:
+        that:
+          - ansible_facts["distribution"] == "Ubuntu"
+          - ansible_facts["distribution_release"] == "resolute"
+          - ansible_facts["distribution_version"] is version("26.04", ">=")
+          - ansible_facts["distribution_version"] is version("26.10", "<")
+          - ansible_facts["architecture"] == "aarch64"
+        fail_msg: >-
+          This playbook targets Ubuntu 26.04 Resolute on ARM64. Found
+          {{ ansible_facts["distribution"] }}
+          {{ ansible_facts["distribution_version"] }}
+          ({{ ansible_facts["distribution_release"] }}) on
+          {{ ansible_facts["architecture"] }}.
+      tags: [always]
+
+    - name: Read workstation account
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ workstation_user }}"
+      tags: [always]
+
+    - name: Store workstation account facts
+      ansible.builtin.set_fact:
+        workstation_home: >-
+          {{ ansible_facts["getent_passwd"][workstation_user][4] }}
+      tags: [always]
+
+    - name: Read workstation primary group
+      ansible.builtin.command:
+        argv:
+          - id
+          - -gn
+          - "{{ workstation_user }}"
+      register: workstation_group_result
+      changed_when: false
+      tags: [always]
+
+    - name: Store workstation primary group
+      ansible.builtin.set_fact:
+        workstation_group: "{{ workstation_group_result.stdout }}"
+      tags: [always]
+
+  roles:
+    - role: base
+      tags: [base]
+
+    - role: parallels_tools
+      when: prepare_parallels_tools_media | bool
+      tags: [parallels_tools]
+
+    - role: shell
+      tags: [shell]
+
+    - role: firefox
+      when: install_firefox | bool
+      tags: [firefox]
+
+    - role: developer_apps
+      tags: [developer_apps]
+
+    - role: docker
+      when: install_docker | bool
+      tags: [docker]
+
+    - role: desktop
+      tags: [desktop]
+
+  post_tasks:
+    - name: Reboot after provisioning
+      ansible.builtin.reboot:
+        msg: Rebooting after workstation provisioning
+      when: reboot_after_provision | bool

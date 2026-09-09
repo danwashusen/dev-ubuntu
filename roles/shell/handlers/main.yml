@@ -1,0 +1,9 @@
+---
+- name: Refresh user font cache
+  ansible.builtin.command:
+    argv:
+      - fc-cache
+      - --force
+      - "{{ workstation_home }}/.local/share/fonts"
+  become_user: "{{ workstation_user }}"
+  changed_when: true

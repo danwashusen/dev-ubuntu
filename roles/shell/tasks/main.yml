@@ -1,0 +1,167 @@
+---
+- name: Install developer shell and CLI packages
+  ansible.builtin.apt:
+    name:
+      - bat
+      - btop
+      - direnv
+      - fd-find
+      - fontconfig
+      - fzf
+      - gh
+      - git
+      - git-lfs
+      - jq
+      - lazygit
+      - neovim
+      - ripgrep
+      - shellcheck
+      - starship
+      - tmux
+      - tree
+      - zoxide
+      - zsh
+    state: present
+
+- name: Install additional developer apt packages
+  ansible.builtin.apt:
+    name: "{{ developer_extra_packages }}"
+    state: present
+  when: developer_extra_packages | length > 0
+
+- name: Set workstation user's default shell to zsh
+  ansible.builtin.user:
+    name: "{{ workstation_user }}"
+    shell: /usr/bin/zsh
+
+- name: Create user shell directories
+  ansible.builtin.file:
+    path: "{{ workstation_home }}/{{ item }}"
+    state: directory
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0755"
+  loop:
+    - .local/bin
+    - .local/share/fonts
+
+- name: Provide conventional fd command name
+  ansible.builtin.file:
+    src: /usr/bin/fdfind
+    dest: "{{ workstation_home }}/.local/bin/fd"
+    state: link
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+
+- name: Provide conventional bat command name
+  ansible.builtin.file:
+    src: /usr/bin/batcat
+    dest: "{{ workstation_home }}/.local/bin/bat"
+    state: link
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+
+- name: Install Oh My Zsh
+  ansible.builtin.git:
+    repo: https://github.com/ohmyzsh/ohmyzsh.git
+    dest: "{{ workstation_home }}/.oh-my-zsh"
+    version: "{{ oh_my_zsh_version }}"
+    depth: 1
+  become_user: "{{ workstation_user }}"
+  when: install_oh_my_zsh | bool
+
+- name: Install Powerlevel10k for Oh My Zsh
+  ansible.builtin.git:
+    repo: https://github.com/romkatv/powerlevel10k.git
+    dest: >-
+      {{ workstation_home }}/.oh-my-zsh/custom/themes/powerlevel10k
+    version: "{{ powerlevel10k_version }}"
+    depth: 1
+  become_user: "{{ workstation_user }}"
+  when:
+    - install_oh_my_zsh | bool
+    - install_powerlevel10k | bool
+
+- name: Inspect controller Powerlevel10k configuration
+  ansible.builtin.stat:
+    path: "{{ controller_powerlevel10k_config_path }}"
+  delegate_to: localhost
+  become: false
+  register: controller_powerlevel10k_config
+  when: sync_controller_powerlevel10k_config | bool
+
+- name: Inspect controller Powerlevel10k font directory
+  ansible.builtin.stat:
+    path: "{{ controller_powerlevel10k_font_dir }}"
+  delegate_to: localhost
+  become: false
+  register: controller_powerlevel10k_font_directory
+  when: sync_controller_powerlevel10k_fonts | bool
+
+- name: Find controller Powerlevel10k fonts
+  ansible.builtin.find:
+    paths: "{{ controller_powerlevel10k_font_dir }}"
+    patterns: MesloLGS NF*.ttf
+    file_type: file
+    recurse: false
+  delegate_to: localhost
+  become: false
+  register: controller_powerlevel10k_fonts
+  when:
+    - sync_controller_powerlevel10k_fonts | bool
+    - controller_powerlevel10k_font_directory.stat.isdir | default(false)
+
+- name: Configure zsh
+  ansible.builtin.template:
+    src: zshrc.j2
+    dest: "{{ workstation_home }}/.zshrc"
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0644"
+
+- name: Sync selected Git configuration from the controller
+  tags: [git_config]
+  when: sync_controller_git_config | bool
+  block:
+    - name: Inspect selected controller Git configuration files
+      ansible.builtin.stat:
+        path: "{{ controller_git_config_dir }}/{{ item }}"
+      loop: "{{ controller_git_config_files }}"
+      loop_control:
+        label: "{{ item }}"
+      register: controller_git_config_stats
+      delegate_to: localhost
+      become: false
+
+    - name: Copy available controller Git configuration files
+      ansible.builtin.copy:
+        src: "{{ controller_git_config_dir }}/{{ item.item }}"
+        dest: "{{ workstation_home }}/{{ item.item }}"
+        owner: "{{ workstation_user }}"
+        group: "{{ workstation_group }}"
+        mode: "0644"
+      loop: "{{ controller_git_config_stats.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item.stat.isreg | default(false)
+
+- name: Sync controller Powerlevel10k configuration
+  ansible.builtin.copy:
+    src: "{{ controller_powerlevel10k_config_path }}"
+    dest: "{{ workstation_home }}/.p10k.zsh"
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0644"
+  when:
+    - sync_controller_powerlevel10k_config | bool
+    - controller_powerlevel10k_config.stat.isreg | default(false)
+
+- name: Sync controller Powerlevel10k fonts
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "{{ workstation_home }}/.local/share/fonts/{{ item.path | basename }}"
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_group }}"
+    mode: "0644"
+  loop: "{{ controller_powerlevel10k_fonts.files | default([]) }}"
+  notify: Refresh user font cache

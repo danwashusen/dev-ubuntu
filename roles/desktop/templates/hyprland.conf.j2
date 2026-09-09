@@ -1,0 +1,87 @@
+monitor = , preferred, auto, {{ hyprland_scale }}
+
+$mainMod = {{ hyprland_main_modifier }}
+
+exec-once = waybar
+exec-once = mako
+exec-once = systemctl --user start hyprpolkitagent.service
+exec-once = wl-paste --type text --watch cliphist store
+exec-once = wl-paste --type image --watch cliphist store
+
+input {
+    kb_layout = {{ keyboard_layout }}
+    follow_mouse = 1
+
+    touchpad {
+        natural_scroll = true
+    }
+}
+
+general {
+    gaps_in = 4
+    gaps_out = 8
+    border_size = 2
+    layout = dwindle
+}
+
+decoration {
+    rounding = 6
+}
+
+animations {
+    enabled = false
+}
+
+misc {
+    disable_hyprland_logo = true
+    disable_splash_rendering = true
+}
+
+# Applications
+bind = $mainMod, RETURN, exec, ghostty
+bind = $mainMod, SPACE, exec, fuzzel
+bind = $mainMod, B, exec, google-chrome-stable
+bind = $mainMod SHIFT, B, exec, firefox
+bind = $mainMod, C, exec, code
+bind = $mainMod, E, exec, nautilus
+
+# Windows
+bind = $mainMod, Q, killactive
+bind = $mainMod, F, fullscreen, 0
+bind = $mainMod, V, togglefloating
+
+# Session
+bind = $mainMod, L, exec, swaylock -f -c 111111
+
+# Clipboard history
+bind = $mainMod, P, exec, cliphist list | fuzzel --dmenu | cliphist decode | wl-copy
+
+# Screenshots
+bind = $mainMod SHIFT, S, exec, grim -g "$(slurp)" - | wl-copy
+
+# Focus
+bind = $mainMod, LEFT, movefocus, l
+bind = $mainMod, RIGHT, movefocus, r
+bind = $mainMod, UP, movefocus, u
+bind = $mainMod, DOWN, movefocus, d
+
+# Move windows
+bind = $mainMod SHIFT, LEFT, movewindow, l
+bind = $mainMod SHIFT, RIGHT, movewindow, r
+bind = $mainMod SHIFT, UP, movewindow, u
+bind = $mainMod SHIFT, DOWN, movewindow, d
+
+# Workspaces
+{% for workspace in range(1, 10) %}
+bind = $mainMod, {{ workspace }}, workspace, {{ workspace }}
+bind = $mainMod SHIFT, {{ workspace }}, movetoworkspace, {{ workspace }}
+{% endfor %}
+
+# Mouse window manipulation
+bindm = $mainMod, mouse:272, movewindow
+bindm = $mainMod, mouse:273, resizewindow
+
+# Audio
+bindel = , XF86AudioRaiseVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+bindel = , XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+bindl = , XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle

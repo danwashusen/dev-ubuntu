@@ -1,0 +1,127 @@
+---
+- name: Read the controller UTC clock
+  ansible.builtin.command:
+    argv:
+      - /bin/date
+      - -u
+      - +%s
+  register: controller_clock_epoch
+  changed_when: false
+  delegate_to: localhost
+  become: false
+
+- name: Read the guest UTC clock
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - -u
+      - +%s
+  register: guest_clock_epoch
+  changed_when: false
+
+- name: Calculate controller-to-guest clock skew
+  ansible.builtin.set_fact:
+    workstation_clock_skew_seconds: >-
+      {{
+        ((controller_clock_epoch.stdout | int) -
+         (guest_clock_epoch.stdout | int)) | abs
+      }}
+
+- name: Inspect guest services before correcting the clock
+  ansible.builtin.service_facts:
+  when:
+    - workstation_clock_skew_seconds | int > maximum_clock_skew_seconds | int
+
+- name: Correct excessive guest clock skew before apt operations
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/date
+      - --utc
+      - "--set=@{{ controller_clock_epoch.stdout }}"
+  when:
+    - workstation_clock_skew_seconds | int > maximum_clock_skew_seconds | int
+  register: guest_clock_correction
+  changed_when: true
+  notify: Restart chrony after clock correction
+
+- name: Apply clock correction handlers before apt operations
+  ansible.builtin.meta: flush_handlers
+
+- name: Install repository and download prerequisites
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - software-properties-common
+      - wget
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable Ubuntu Universe repository
+  ansible.builtin.command:
+    argv:
+      - add-apt-repository
+      - --yes
+      - universe
+  changed_when: false
+
+- name: Update apt cache after enabling repositories
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Upgrade installed packages
+  ansible.builtin.apt:
+    upgrade: dist
+  when: perform_full_upgrade | bool
+
+- name: Install base system and Parallels Tools prerequisites
+  ansible.builtin.apt:
+    name:
+      - build-essential
+      - dbus-user-session
+      - dkms
+      - libelf-dev
+      - "linux-headers-{{ ansible_facts['kernel'] }}"
+      - man-db
+      - openssh-server
+      - pkg-config
+      - rsync
+      - unattended-upgrades
+      - unzip
+      - zip
+    state: present
+
+- name: Read configured timezone
+  ansible.builtin.command:
+    argv:
+      - timedatectl
+      - show
+      - --property=Timezone
+      - --value
+  register: current_timezone
+  changed_when: false
+
+- name: Configure timezone
+  ansible.builtin.command:
+    argv:
+      - timedatectl
+      - set-timezone
+      - "{{ workstation_timezone }}"
+  when: current_timezone.stdout != workstation_timezone
+  changed_when: true
+
+- name: Enable SSH service
+  ansible.builtin.systemd:
+    name: ssh
+    enabled: true
+    state: started
+
+- name: Remove snapd from this DEB-based workstation
+  ansible.builtin.apt:
+    name: snapd
+    state: absent
+    purge: true
+  when: remove_snapd | bool

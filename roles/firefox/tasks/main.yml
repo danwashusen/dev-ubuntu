@@ -1,0 +1,58 @@
+---
+- name: Create apt keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download Mozilla repository signing key
+  ansible.builtin.get_url:
+    url: https://packages.mozilla.org/apt/repo-signing-key.gpg
+    dest: /etc/apt/keyrings/packages.mozilla.org.asc
+    mode: "0644"
+
+- name: Read Mozilla signing key fingerprint
+  ansible.builtin.command:
+    argv:
+      - gpg
+      - --show-keys
+      - --with-colons
+      - /etc/apt/keyrings/packages.mozilla.org.asc
+  register: mozilla_key
+  changed_when: false
+
+- name: Verify Mozilla signing key
+  ansible.builtin.assert:
+    that:
+      - "'35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3' in mozilla_key.stdout"
+    fail_msg: Mozilla repository signing key fingerprint did not match.
+
+- name: Configure Mozilla apt repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/mozilla.sources
+    mode: "0644"
+    content: |
+      Types: deb
+      URIs: https://packages.mozilla.org/apt
+      Suites: mozilla
+      Components: main
+      Signed-By: /etc/apt/keyrings/packages.mozilla.org.asc
+
+- name: Prefer Mozilla Firefox over Ubuntu's Snap transition package
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/mozilla
+    mode: "0644"
+    content: |
+      Package: *
+      Pin: origin packages.mozilla.org
+      Pin-Priority: 1000
+
+      Package: firefox
+      Pin: release o=Ubuntu
+      Pin-Priority: -1
+
+- name: Install Firefox from Mozilla
+  ansible.builtin.apt:
+    name: firefox
+    state: present
+    update_cache: true

@@ -1,0 +1,229 @@
+---
+- name: Install Google Chrome ARM64
+  when: install_chrome | bool
+  block:
+    - name: Download Google Chrome ARM64 package
+      ansible.builtin.get_url:
+        url: https://dl.google.com/linux/direct/google-chrome-stable_current_arm64.deb
+        dest: /var/tmp/google-chrome-stable_current_arm64.deb
+        mode: "0644"
+
+    - name: Inspect Google Chrome package architecture
+      ansible.builtin.command:
+        argv:
+          - dpkg-deb
+          - --field
+          - /var/tmp/google-chrome-stable_current_arm64.deb
+          - Architecture
+      register: chrome_package_architecture
+      changed_when: false
+
+    - name: Verify Google Chrome package architecture
+      ansible.builtin.assert:
+        that:
+          - chrome_package_architecture.stdout == "arm64"
+        fail_msg: Downloaded Google Chrome package is not ARM64.
+
+    - name: Install Google Chrome package
+      ansible.builtin.apt:
+        deb: /var/tmp/google-chrome-stable_current_arm64.deb
+        state: present
+
+- name: Install Visual Studio Code ARM64
+  when: install_vscode | bool
+  block:
+    - name: Download Microsoft repository signing key
+      ansible.builtin.get_url:
+        url: https://packages.microsoft.com/keys/microsoft.asc
+        dest: /var/tmp/microsoft.asc
+        mode: "0644"
+      register: microsoft_signing_key
+
+    - name: Convert Microsoft signing key to a keyring
+      ansible.builtin.command:
+        argv:
+          - gpg
+          - --dearmor
+          - --yes
+          - --output
+          - /usr/share/keyrings/microsoft.gpg
+          - /var/tmp/microsoft.asc
+      when: microsoft_signing_key.changed
+      changed_when: true
+
+    - name: Configure Visual Studio Code apt repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/vscode.sources
+        mode: "0644"
+        content: |
+          Types: deb
+          URIs: https://packages.microsoft.com/repos/code
+          Suites: stable
+          Components: main
+          Architectures: arm64
+          Signed-By: /usr/share/keyrings/microsoft.gpg
+
+    - name: Install Visual Studio Code
+      ansible.builtin.apt:
+        name: code
+        state: present
+        update_cache: true
+
+- name: Install mise from its official apt repository
+  when: install_mise | bool
+  block:
+    - name: Create apt keyring directory for mise
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Download mise repository signing key
+      ansible.builtin.get_url:
+        url: https://mise.jdx.dev/gpg-key.pub
+        dest: /etc/apt/keyrings/mise-archive-keyring.asc
+        mode: "0644"
+
+    - name: Configure mise apt repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/mise.sources
+        mode: "0644"
+        content: |
+          Types: deb
+          URIs: https://mise.jdx.dev/deb
+          Suites: stable
+          Components: main
+          Architectures: arm64
+          Signed-By: /etc/apt/keyrings/mise-archive-keyring.asc
+
+    - name: Install mise
+      ansible.builtin.apt:
+        name: mise
+        state: present
+        update_cache: true
+
+- name: Install Claude Code with its native installer
+  when: install_claude_code | bool
+  block:
+    - name: Download Claude Code native installer
+      ansible.builtin.get_url:
+        url: https://claude.ai/install.sh
+        dest: /var/tmp/claude-code-install.sh
+        mode: "0755"
+
+    - name: Run Claude Code native installer as workstation user
+      ansible.builtin.command:
+        argv:
+          - /bin/bash
+          - /var/tmp/claude-code-install.sh
+          - "{{ claude_code_channel }}"
+        creates: "{{ workstation_home }}/.local/bin/claude"
+      become: true
+      become_user: "{{ workstation_user }}"
+      environment:
+        HOME: "{{ workstation_home }}"
+        USER: "{{ workstation_user }}"
+
+- name: Sync selected Claude Code configuration from the controller
+  tags: [claude_config]
+  when:
+    - install_claude_code | bool
+    - sync_controller_claude_config | bool
+  block:
+    - name: Inspect selected controller Claude Code files
+      ansible.builtin.stat:
+        path: "{{ controller_claude_config_dir }}/{{ item.path }}"
+      loop: "{{ controller_claude_config_files }}"
+      loop_control:
+        label: "{{ item.path }}"
+      register: controller_claude_file_stats
+      delegate_to: localhost
+      become: false
+
+    - name: Inspect selected controller Claude Code directories
+      ansible.builtin.stat:
+        path: "{{ controller_claude_config_dir }}/{{ item }}"
+      loop: "{{ controller_claude_config_directories }}"
+      loop_control:
+        label: "{{ item }}"
+      register: controller_claude_directory_stats
+      delegate_to: localhost
+      become: false
+
+    - name: Create target Claude Code configuration directories
+      ansible.builtin.file:
+        path: "{{ workstation_home }}/.claude/{{ item }}"
+        state: directory
+        owner: "{{ workstation_user }}"
+        group: "{{ workstation_group }}"
+        mode: "0700"
+      loop:
+        - ""
+        - hooks
+
+    - name: Copy available controller Claude Code files
+      ansible.builtin.copy:
+        src: "{{ controller_claude_config_dir }}/{{ item.item.path }}"
+        dest: "{{ workstation_home }}/.claude/{{ item.item.path }}"
+        owner: "{{ workstation_user }}"
+        group: "{{ workstation_group }}"
+        mode: "{{ item.item.mode }}"
+      loop: "{{ controller_claude_file_stats.results }}"
+      loop_control:
+        label: "{{ item.item.path }}"
+      when: item.stat.isreg | default(false)
+
+    - name: Create available target Claude Code directory roots
+      ansible.builtin.file:
+        path: "{{ workstation_home }}/.claude/{{ item.item }}"
+        state: directory
+        owner: "{{ workstation_user }}"
+        group: "{{ workstation_group }}"
+        mode: "0700"
+      loop: "{{ controller_claude_directory_stats.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item.stat.isdir | default(false)
+
+    - name: Merge available controller Claude Code directories
+      ansible.builtin.copy:
+        src: "{{ controller_claude_config_dir }}/{{ item.item }}/"
+        dest: "{{ workstation_home }}/.claude/{{ item.item }}/"
+        owner: "{{ workstation_user }}"
+        group: "{{ workstation_group }}"
+        mode: preserve
+        directory_mode: "0700"
+      loop: "{{ controller_claude_directory_stats.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item.stat.isdir | default(false)
+
+    - name: Restore private permissions on synced Claude directory roots
+      ansible.builtin.file:
+        path: "{{ workstation_home }}/.claude/{{ item.item }}"
+        state: directory
+        owner: "{{ workstation_user }}"
+        group: "{{ workstation_group }}"
+        mode: "0700"
+      loop: "{{ controller_claude_directory_stats.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item.stat.isdir | default(false)
+
+    - name: Inspect synced files that may contain controller paths
+      ansible.builtin.stat:
+        path: "{{ workstation_home }}/.claude/{{ item }}"
+      loop: "{{ controller_claude_path_rewrite_files }}"
+      loop_control:
+        label: "{{ item }}"
+      register: target_claude_path_files
+
+    - name: Rewrite controller home paths for the workstation
+      ansible.builtin.replace:
+        path: "{{ workstation_home }}/.claude/{{ item.item }}"
+        regexp: "{{ controller_user_home | regex_escape }}"
+        replace: "{{ workstation_home }}"
+      loop: "{{ target_claude_path_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item.stat.isreg | default(false)
