@@ -11,6 +11,16 @@ MEMORY_MB ?=
 DISK_GB ?=
 START_VM ?=
 RESUME ?= no
+AUTOINSTALL ?= yes
+GUEST_USER ?=
+GUEST_HOSTNAME ?=
+SSH_PUBLIC_KEY ?=
+ARTIFACTS_DIR ?=
+WAIT_FOR_SSH ?= yes
+SSH_HOST ?=
+SSH_WAIT_TIMEOUT ?= 2700
+RUN_ANSIBLE ?= yes
+ANSIBLE_PLAYBOOK ?=
 
 .PHONY: help bootstrap images vms
 
@@ -28,7 +38,17 @@ bootstrap: ## Interactively create an ARM64 Ubuntu VM from an ISO
 		--memory-mb "$(MEMORY_MB)" \
 		--disk-gb "$(DISK_GB)" \
 		--start "$(START_VM)" \
-		--resume "$(RESUME)"
+		--resume "$(RESUME)" \
+		--autoinstall "$(AUTOINSTALL)" \
+		--guest-user "$(GUEST_USER)" \
+		--hostname "$(GUEST_HOSTNAME)" \
+		--ssh-key "$(SSH_PUBLIC_KEY)" \
+		--artifacts "$(ARTIFACTS_DIR)" \
+		--wait-for-ssh "$(WAIT_FOR_SSH)" \
+		--ssh-host "$(SSH_HOST)" \
+		--ssh-timeout "$(SSH_WAIT_TIMEOUT)" \
+		--run-ansible "$(RUN_ANSIBLE)" \
+		--ansible "$(ANSIBLE_PLAYBOOK)"
 
 images: ## List discovered Ubuntu Server ARM64 ISO images, newest first
 	@./scripts/bootstrap-vm.sh --downloads "$(DOWNLOADS_DIR)" --list-images

@@ -149,9 +149,37 @@
           The Parallels Tools disc is present at
           {{ parallels_tools_media_path }}, but its installer was not found.
 
+    - name: Install Parallels Tools unattended
+      ansible.builtin.command:
+        argv:
+          - "{{ parallels_tools_media_path }}/install"
+          - --install-unattended
+          - --verbose
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      when: install_parallels_tools_automatically | bool
+      register: parallels_tools_install_result
+      changed_when: parallels_tools_install_result.rc == 0
+
+    - name: Verify the unattended Parallels Tools installation
+      ansible.builtin.stat:
+        path: /usr/bin/prltoolsd
+      register: parallels_tools_installed_executable
+      when: install_parallels_tools_automatically | bool
+
+    - name: Confirm Parallels Tools was installed
+      ansible.builtin.assert:
+        that:
+          - parallels_tools_installed_executable.stat.executable | default(false)
+        fail_msg: >-
+          The Parallels Tools installer completed but /usr/bin/prltoolsd is
+          unavailable. Inspect /var/log/parallels-tools-install.log.
+      when: install_parallels_tools_automatically | bool
+
     - name: Report the Parallels Tools installer location
       ansible.builtin.debug:
         msg: >-
           Parallels Tools is not installed. Its installer is available at
           {{ parallels_tools_media_path }}/install; run it interactively with
           sudo, then reboot the VM.
+      when: not install_parallels_tools_automatically | bool

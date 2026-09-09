@@ -89,3 +89,9 @@
       ansible.builtin.reboot:
         msg: Rebooting after workstation provisioning
       when: reboot_after_provision | bool
+
+    - name: Restore password-protected sudo
+      ansible.builtin.file:
+        path: "{{ bootstrap_passwordless_sudo_path }}"
+        state: absent
+      tags: [always]

@@ -73,6 +73,8 @@
     - .local/share/applications
     - .config/fuzzel
     - .config/ghostty
+    - .config/gtk-3.0
+    - .config/gtk-4.0
     - .config/hypr
     - .config/mako
     - .config/waybar
@@ -88,6 +90,8 @@
     - {src: fuzzel.ini.j2, dest: .config/fuzzel/fuzzel.ini}
     - {src: ghostty.desktop.j2, dest: .local/share/applications/com.mitchellh.ghostty.desktop}
     - {src: ghostty.conf.j2, dest: .config/ghostty/config}
+    - {src: gtk-settings.ini.j2, dest: .config/gtk-3.0/settings.ini}
+    - {src: gtk-settings.ini.j2, dest: .config/gtk-4.0/settings.ini}
     - {src: hyprland.conf.j2, dest: .config/hypr/hyprland.conf}
     - {src: mako.conf.j2, dest: .config/mako/config}
     - {src: waybar.jsonc.j2, dest: .config/waybar/config.jsonc}

@@ -14,17 +14,24 @@ netplan/systemd-networkd networking, and uses lightweight desktop components.
 - Docker Engine, Buildx, and Compose from Docker's repository
 - Hyprland, greetd/agreety, Ghostty, Waybar, fuzzel, mako, Nautilus, PipeWire,
   portals, clipboard history, locking, and screenshot tools
+- Ubuntu's JetBrains Mono package, applied to Ghostty, Waybar, fuzzel, mako,
+  and GTK 3/4 applications
 
 The project intentionally does **not** install GNOME/KDE, `ubuntu-desktop`,
 GDM/SDDM, NetworkManager, a dock, or desktop icons.
 
 ## Prerequisites
 
-1. Create an Ubuntu Server 26.04.1 LTS ARM64 VM in Parallels Desktop.
-2. Create a normal user with sudo access and enable SSH during installation.
-3. Make sure the Mac can reach the VM over SSH.
-4. On the Mac, install Ansible (for example, `brew install ansible`).
-5. Prefer an SSH key. Password authentication also works with the flags below.
+For an automated VM build, install Parallels Desktop Pro or Business, Ansible,
+Python 3, and `xorriso` on the Mac, and have an SSH public key available. For
+example:
+
+```bash
+brew install ansible python xorriso
+```
+
+For a VM installed separately, create a normal user with sudo access, enable
+SSH during installation, and make sure the Mac can reach it over SSH.
 
 Only modules included with `ansible-core` are used; no Galaxy collections are
 required.
@@ -37,9 +44,8 @@ implementation. This affects Ansible only; interactive `sudo` remains
 
 ## Bootstrap a Parallels VM
 
-The Make workflow can create the VM hardware before Ubuntu and Ansible take
-over. It requires Parallels Desktop Pro or Business with `prlctl` available.
-Run:
+The Make workflow creates the VM hardware and, by default, performs an Ubuntu
+Autoinstall before Ansible takes over. Run:
 
 ```bash
 make bootstrap
@@ -57,7 +63,28 @@ The created VM uses a lean Linux integration profile: bidirectional clipboard
 and UTC time synchronization are enabled; application sharing, shared folders,
 shared profile/cloud, printer synchronization, automatic camera/smart-card/
 gamepad sharing, host location, Rosetta, and automatic SSH-key injection are
-disabled. The Ubuntu installer itself remains interactive for now.
+disabled.
+
+Autoinstall defaults the Ubuntu username to the current macOS account name and
+the hostname to a normalized form of the VM name. It selects one SSH public key
+(preferring `~/.ssh/id_ed25519.pub`), prompts twice for a local/sudo password,
+installs standard Ubuntu Server onto the entire virtual disk, disables SSH
+password authentication, and reboots. The normal Linux numeric UID is retained;
+only the account name is matched to the Mac.
+
+The local/sudo password is hashed with bcrypt before it is written to CIDATA,
+then the plaintext is discarded. Autoinstall creates a temporary, user-scoped
+`NOPASSWD` sudoers rule so Ansible can run unattended. After the final reboot,
+the playbook removes that rule as its last privileged action, restoring normal
+password-protected sudo. If provisioning fails, the controller makes a separate
+best-effort cleanup attempt and warns prominently if the VM cannot be reached.
+
+The workflow creates two ignored artifacts under `.artifacts/autoinstall`: a
+cached copy of the Ubuntu ISO whose GRUB entry includes the `autoinstall` kernel
+argument, and a per-VM CIDATA ISO. The latter contains the password hash and SSH
+public key, is mode `0600`, and must never be committed or shared. The existing
+host-side confirmation remains the destructive safety boundary before the
+installer is allowed to replace the VM disk.
 
 List discovered images or registered VMs with:
 
@@ -76,6 +103,18 @@ make bootstrap \
   CPUS=8 MEMORY_MB=8192 DISK_GB=24 START_VM=yes
 ```
 
+Override the generated identity or selected public key when needed:
+
+```bash
+make bootstrap \
+  GUEST_USER="developer" \
+  GUEST_HOSTNAME="ubuntu-workstation" \
+  SSH_PUBLIC_KEY="$HOME/.ssh/id_ed25519.pub"
+```
+
+Set `AUTOINSTALL=no RUN_ANSIBLE=no` to retain the original interactive Ubuntu
+installer.
+
 To take only the CPU, memory, and disk defaults from a currently registered VM,
 set `SIZING_VM="VM name"`. The Dev Server integration profile remains in force.
 
@@ -84,8 +123,29 @@ fix the reported incompatibility and rerun the same command with `RESUME=yes`.
 This explicit switch prevents an existing VM from being modified accidentally;
 the recovery path will grow an undersized disk but never shrink an existing one.
 
-Automatic Ubuntu user creation and the subsequent Ansible invocation are
-deliberately deferred to the next stage of this workflow.
+The generated installation includes Python, OpenSSH, and Avahi. After starting
+the VM, bootstrap waits for key-based SSH authentication at `HOSTNAME.local`,
+runs the complete playbook against a private temporary inventory, installs
+Parallels Tools unattended, and reboots. It reports SSH progress every 30
+seconds; the default timeout is 45 minutes. Temporary inventory and known-hosts
+data are removed when the command exits, and the project files
+remain free of the generated host and account details.
+
+Override the target or timeout when mDNS is unavailable:
+
+```bash
+make bootstrap SSH_HOST=VM_IP_ADDRESS SSH_WAIT_TIMEOUT=3600
+```
+
+To stop after creating and starting the installed server, disable both the
+provisioning stage and (optionally) the SSH wait:
+
+```bash
+make bootstrap RUN_ANSIBLE=no
+make bootstrap RUN_ANSIBLE=no WAIT_FOR_SSH=no
+```
+
+Interactive installation requires `AUTOINSTALL=no RUN_ANSIBLE=no`.
 
 ## Inventory and variables
 
@@ -108,11 +168,16 @@ defaults to `~/Development/Projects` for the workstation account.
 The main switches live in `group_vars/all.yml`. Firefox, Chrome, VS Code, mise,
 Claude Code, Docker, and Snap removal are enabled by default. Set
 `remove_snapd: false` if the VM needs any snaps. Useful display settings include
-`hyprland_scale`, `hyprland_main_modifier`, `keyboard_layout`, and
-`ghostty_font_size`. The main modifier defaults to `ALT SUPER`, requiring
+`hyprland_scale`, `hyprland_main_modifier`, `keyboard_layout`, `ui_font_family`,
+`ui_font_size`, and `ghostty_font_size`. The main modifier defaults to `ALT SUPER`, requiring
 Option+Command together for Hyprland shortcuts in Parallels. Ghostty defaults
 to scoped Mesa software rendering through `ghostty_force_software_rendering`
 because Parallels virgl does not expose Ghostty's required OpenGL version.
+
+The desktop role installs Ubuntu's `fonts-jetbrains-mono` package. It is the
+primary Ghostty font and the configured face for Waybar, fuzzel, mako, and GTK
+3/4 applications. Ghostty keeps `MesloLGS NF` as a fallback so the synced
+Powerlevel10k configuration retains its Nerd Font symbols.
 
 Before its first apt operation, the base role compares the VM's UTC clock with
 the Ansible controller. If their difference exceeds
@@ -124,8 +189,10 @@ Set `parallels_vm_name` to the VM's exact name in Parallels Desktop. With
 `prepare_parallels_tools_media: true`, the playbook checks inside Ubuntu for
 an installed `parallels-tools` package or Tools executable. Only when Tools is
 absent does it ask the Mac's `prlctl` to attach the bundled ARM64 ISO. It reuses
-an already attached or mounted Parallels Tools disc and never runs the vendor
-installer automatically.
+an already attached or mounted Parallels Tools disc. Standalone playbook runs
+leave the installer available for manual use by default; set
+`install_parallels_tools_automatically: true` to use the vendor's unattended
+installer. The full bootstrap workflow enables that setting automatically.
 
 The shell role clones [Oh My Zsh](https://github.com/ohmyzsh/ohmyzsh) and
 [Powerlevel10k](https://github.com/romkatv/powerlevel10k) into the workstation
@@ -200,16 +267,18 @@ To synchronize only the selected Git configuration:
 ansible-playbook -i inventory.ini site.yml --ask-become-pass --tags git_config
 ```
 
-The default does not reboot. Reboot manually when convenient, or set
-`reboot_after_provision: true`. Log out and back in after provisioning so Docker
-group membership and the zsh login shell take effect.
+A standalone playbook run does not reboot by default. Reboot manually when
+convenient, or set `reboot_after_provision: true`. The full bootstrap workflow
+enables this setting, waits for the reboot, and returns only after the
+workstation is reachable again.
 
 ## Parallels Tools
 
 The base role installs `dkms`, `libelf-dev`, `build-essential`, `pkg-config`, and
 headers for the running kernel. The `parallels_tools` role conditionally makes
-the matching installer media accessible inside the VM, but Parallels Tools
-remains an interactive vendor installer.
+the matching installer media accessible inside the VM. Full bootstrap runs the
+bundled unattended installer; standalone playbook runs keep installation
+manual by default.
 
 After the role reports the installer path, run its `install` program with sudo.
 For example, if the role mounted the image at its default location:

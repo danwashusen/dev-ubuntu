@@ -1,4 +1,4 @@
 .ansible/
+.artifacts/
 *.retry
 .DS_Store
-

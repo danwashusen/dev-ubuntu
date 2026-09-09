@@ -1,5 +1,5 @@
 ---
-workstation_user: danwas
+workstation_user: YOUR_USER
 
 # Ubuntu 26.04 defaults to sudo-rs. Ansible 2.13 cannot recognize its password
 # prompt, so use Ubuntu's supported sudo.ws compatibility executable for become.
@@ -27,12 +27,18 @@ install_oh_my_zsh: true
 install_powerlevel10k: true
 
 # When Parallels Tools is absent in the guest, attach the host-bundled ARM ISO
-# and mount it in Ubuntu. The vendor installer remains an interactive step.
+# and mount it in Ubuntu. Keep unattended installation opt-in for standalone
+# playbook runs; the end-to-end bootstrap overrides it to true.
 prepare_parallels_tools_media: true
-parallels_vm_name: Dev Ubuntu
+install_parallels_tools_automatically: false
+parallels_vm_name: YOUR_VM_NAME
 parallels_prlctl_path: /usr/local/bin/prlctl
 parallels_tools_iso_path: "/Applications/Parallels Desktop.app/Contents/Resources/Tools/prl-tools-lin-arm.iso"
 parallels_tools_mount_path: /media/cdrom0
+
+# Autoinstall creates this temporary NOPASSWD rule so the initial playbook can
+# run unattended. site.yml removes it as its final privileged action.
+bootstrap_passwordless_sudo_path: /etc/sudoers.d/99-dev-ubuntu-bootstrap
 
 # Keep .zshrc Linux-specific, but reuse the portable prompt configuration and
 # recommended fonts from the controller when they are available.
@@ -93,8 +99,15 @@ remove_snapd: true
 hyprland_scale: 1
 # Require Option+Command together for Hyprland shortcuts in Parallels.
 hyprland_main_modifier: ALT SUPER
+
+# Use Ubuntu's packaged JetBrains Mono throughout the desktop UI.
+ui_font_family: JetBrains Mono
+ui_font_size: 11
+
 ghostty_font_size: 13
-ghostty_font_family: MesloLGS NF
+ghostty_font_family: "{{ ui_font_family }}"
+# Retain Powerlevel10k and Nerd Font glyphs without changing the primary face.
+ghostty_fallback_font_family: MesloLGS NF
 # Parallels virgl exposes less than the OpenGL 4.3 required by Ghostty.
 ghostty_force_software_rendering: true
 
