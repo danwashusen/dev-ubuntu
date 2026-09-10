@@ -8,7 +8,8 @@ netplan/systemd-networkd networking, and uses lightweight desktop components.
 ## What it installs
 
 - Base OS tools and Parallels Tools build prerequisites
-- zsh, Starship, Neovim, tmux, lazygit, GitHub CLI, and modern CLI utilities
+- zsh, Starship, Neovim, tmux, lazygit, current GitHub CLI, and modern CLI
+  utilities
 - Firefox from Mozilla's DEB repository (not Snap)
 - Google Chrome for Linux ARM64, Visual Studio Code ARM64, 1Password desktop
   and CLI (`op`), mise, Claude Desktop, and Claude Code
@@ -178,8 +179,9 @@ workstation definition. Run only these tasks with the `developer_extra_tasks`
 tag when needed.
 
 The main switches live in `group_vars/all.yml`. Firefox, Chrome, VS Code,
-1Password, mise, Claude Desktop, Claude Code, Docker, and Snap removal are
-enabled by default. Set `remove_snapd: false` if the VM needs any snaps. Useful display settings include
+1Password, mise, GitHub CLI, Claude Desktop, Claude Code, Docker, and Snap
+removal are enabled by default. Set `remove_snapd: false` if the VM needs any
+snaps. Useful display settings include
 `hyprland_scale`, `hyprland_main_modifier`, `keyboard_layout`, `ui_font_family`,
 `ui_font_size`, and `ghostty_font_size`. The main modifier defaults to `ALT SUPER`, requiring
 Option+Command together for Hyprland shortcuts in Parallels. Ghostty defaults
@@ -313,6 +315,19 @@ Claude Desktop is installed from
 [Anthropic's signed Linux apt repository](https://support.claude.com/en/articles/10065433-install-claude-desktop)
 and launches as `claude-desktop`. The Linux release is currently a beta.
 
+Install or upgrade only GitHub CLI on an existing bootstrapped VM:
+
+```bash
+make apply-playbook \
+  VM_NAME="Ubuntu Workstation" \
+  PLAYBOOK_ARGS="--tags github_cli"
+```
+
+The shell role uses
+[GitHub CLI's official signed apt repository](https://github.com/cli/cli/blob/trunk/docs/install_linux.md)
+rather than Ubuntu's slower-moving community package. The task requests the
+latest repository version so rerunning it also upgrades an existing `gh`.
+
 Set `BECOME_ARGS=` for a non-privileged operation such as `--syntax-check`.
 
 To prepare only the Parallels Tools installation media when Tools is absent:
@@ -409,7 +424,8 @@ When experimenting with dynamic resolution, inspect its services with
 Ubuntu's package manager owns durable workstation software: Hyprland and its
 desktop services, browsers, VS Code, Claude Desktop, Docker, shells, editors,
 CLI utilities, and mise itself. Claude Desktop remains apt-owned through
-Anthropic's signed ARM64 repository. The ARM64 1Password desktop app and Claude
+Anthropic's signed ARM64 repository, while GitHub CLI is apt-owned through
+GitHub's signed ARM64 repository. The ARM64 1Password desktop app and Claude
 Code are deliberate exceptions: their vendor-recommended installers own those
 applications and their updates. 1Password's signed stable ARM64 archive is
 verified against the vendor's published signing-key fingerprint before

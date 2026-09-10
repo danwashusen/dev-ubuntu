@@ -21,6 +21,7 @@ install_chrome: true
 install_vscode: true
 install_1password: true
 install_mise: true
+install_github_cli: true
 install_claude_desktop: true
 install_claude_code: true
 install_docker: true
@@ -74,6 +75,14 @@ oh_my_zsh_plugins:
   - terraform
   - zoxide
   - fzf
+
+# GitHub's repository tracks current gh releases more closely than Ubuntu's
+# community package. Pin the exact vendor-published keyring contents.
+github_cli_signing_key_url: >-
+  https://cli.github.com/packages/githubcli-archive-keyring.gpg
+github_cli_signing_key_sha256: >-
+  6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b
+github_cli_repository_url: https://cli.github.com/packages
 
 # The native Claude Code installer accepts "stable", "latest", or a version.
 claude_code_channel: stable
