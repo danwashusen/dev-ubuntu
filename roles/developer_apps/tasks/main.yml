@@ -323,6 +323,74 @@
         state: present
         update_cache: true
 
+- name: Install Claude Desktop for ARM64
+  tags: [claude_desktop]
+  when: install_claude_desktop | bool
+  block:
+    - name: Download Claude Desktop repository signing key
+      ansible.builtin.get_url:
+        url: "{{ claude_desktop_signing_key_url }}"
+        dest: /usr/share/keyrings/claude-desktop-archive-keyring.asc
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Inspect Claude Desktop repository signing key
+      ansible.builtin.command:
+        argv:
+          - gpg
+          - --show-keys
+          - --with-colons
+          - /usr/share/keyrings/claude-desktop-archive-keyring.asc
+      register: claude_desktop_signing_key_details
+      changed_when: false
+
+    - name: Verify Claude Desktop repository signing key fingerprint
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('fpr:::::::::' ~ claude_desktop_signing_key_fingerprint ~ ':')
+            in claude_desktop_signing_key_details.stdout
+        fail_msg: >-
+          The downloaded Claude Desktop repository signing key has an
+          unexpected fingerprint.
+
+    - name: Configure Claude Desktop ARM64 apt repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/claude-desktop.sources
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          Types: deb
+          URIs: {{ claude_desktop_repository_url }}
+          Suites: stable
+          Components: main
+          Architectures: arm64
+          Signed-By: /usr/share/keyrings/claude-desktop-archive-keyring.asc
+
+    - name: Install Claude Desktop
+      ansible.builtin.apt:
+        name: claude-desktop
+        state: present
+        update_cache: true
+
+    - name: Inspect Claude Desktop package architecture
+      ansible.builtin.command:
+        argv:
+          - dpkg-query
+          - --show
+          - "--showformat=${Architecture}"
+          - claude-desktop
+      register: claude_desktop_package_architecture
+      changed_when: false
+
+    - name: Verify Claude Desktop package architecture
+      ansible.builtin.assert:
+        that:
+          - claude_desktop_package_architecture.stdout == "arm64"
+        fail_msg: Installed Claude Desktop package is not ARM64.
+
 - name: Install Claude Code with its native installer
   when: install_claude_code | bool
   block:

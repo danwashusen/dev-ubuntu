@@ -21,6 +21,7 @@ install_chrome: true
 install_vscode: true
 install_1password: true
 install_mise: true
+install_claude_desktop: true
 install_claude_code: true
 install_docker: true
 install_oh_my_zsh: true
@@ -76,6 +77,14 @@ oh_my_zsh_plugins:
 
 # The native Claude Code installer accepts "stable", "latest", or a version.
 claude_code_channel: stable
+
+# Claude Desktop's Linux beta is available for Ubuntu on ARM64 from Anthropic's
+# signed apt repository.
+claude_desktop_signing_key_url: >-
+  https://downloads.claude.ai/claude-desktop/key.asc
+claude_desktop_signing_key_fingerprint: 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE
+claude_desktop_repository_url: >-
+  https://downloads.claude.ai/claude-desktop/apt/stable
 
 # 1Password's desktop Debian package is amd64-only, so use its signed ARM64
 # archive for the app. The CLI is available from the vendor's ARM64 apt repo.
