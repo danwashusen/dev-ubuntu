@@ -14,6 +14,7 @@ provision_run_ansible() (
   local ssh_public_key_file="$5"
   local vm_name="$6"
   local bootstrap_sudoers_path="$7"
+  local developer_extra_tasks_file="$8"
   local temporary_dir
   local inventory_file
   local extra_vars_file
@@ -64,6 +65,10 @@ provision_run_ansible() (
       "$(autoinstall_json_string "$bootstrap_sudoers_path")"
     printf 'install_parallels_tools_automatically: true\n'
     printf 'reboot_after_provision: true\n'
+    if [[ -n "$developer_extra_tasks_file" ]]; then
+      printf 'developer_extra_tasks_file: %s\n' \
+        "$(autoinstall_json_string "$developer_extra_tasks_file")"
+    fi
   } >"$extra_vars_file"
 
   {
@@ -124,7 +129,8 @@ provision_apply_playbook() (
   local guest_user="$4"
   local ssh_public_key_file="$5"
   local vm_name="$6"
-  shift 6
+  local developer_extra_tasks_file="$7"
+  shift 7
 
   local playbook_args=("$@")
   local temporary_dir
@@ -170,6 +176,10 @@ provision_apply_playbook() (
       "$(autoinstall_json_string "$guest_user")"
     printf 'parallels_vm_name: %s\n' \
       "$(autoinstall_json_string "$vm_name")"
+    if [[ -n "$developer_extra_tasks_file" ]]; then
+      printf 'developer_extra_tasks_file: %s\n' \
+        "$(autoinstall_json_string "$developer_extra_tasks_file")"
+    fi
   } >"$extra_vars_file"
 
   chmod 0600 "$inventory_file" "$extra_vars_file"

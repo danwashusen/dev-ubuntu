@@ -19,9 +19,19 @@
       when: controller_local_vars_file.stat.isreg | default(false)
       tags: [always]
 
+    - name: Resolve optional checkout-specific developer tasks path
+      ansible.builtin.set_fact:
+        developer_extra_tasks_path: >-
+          {{
+            developer_extra_tasks_file
+            if developer_extra_tasks_file.startswith('/')
+            else playbook_dir ~ '/' ~ developer_extra_tasks_file
+          }}
+      tags: [always]
+
     - name: Inspect optional checkout-specific developer tasks
       ansible.builtin.stat:
-        path: "{{ playbook_dir }}/developer_extra_tasks.yml"
+        path: "{{ developer_extra_tasks_path }}"
       register: controller_developer_extra_tasks_file
       delegate_to: localhost
       become: false
@@ -109,7 +119,7 @@
   post_tasks:
     - name: Run optional checkout-specific developer tasks
       ansible.builtin.include_tasks:
-        file: "{{ playbook_dir }}/developer_extra_tasks.yml"
+        file: "{{ developer_extra_tasks_path }}"
         apply:
           tags: [developer_extra_tasks]
       when: controller_developer_extra_tasks_file.stat.isreg | default(false)

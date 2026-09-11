@@ -178,6 +178,29 @@ repositories or install software that should not be part of the shared
 workstation definition. Run only these tasks with the `developer_extra_tasks`
 tag when needed.
 
+To keep multiple developer profiles, place them in the ignored
+`developer_extra_tasks/` directory and select one with the Make variable
+`DEVELOPER_EXTRA_TASKS_FILE`. Paths may be absolute or relative to the project
+root. The root-level `developer_extra_tasks.yml` remains the default when the
+variable is omitted. For example:
+
+```bash
+make apply-playbook \
+  VM_NAME="Ubuntu Workstation" \
+  DEVELOPER_EXTRA_TASKS_FILE="developer_extra_tasks/rails.yml"
+```
+
+The same override works during an end-to-end build:
+
+```bash
+make bootstrap \
+  DEVELOPER_EXTRA_TASKS_FILE="$HOME/.config/dev-ubuntu/java.yml"
+```
+
+An explicitly selected file must exist; the Make workflow fails before starting
+or modifying the VM if its path is wrong. Direct Ansible runs can set the lower-
+case `developer_extra_tasks_file` variable with `--extra-vars`.
+
 The main switches live in `group_vars/all.yml`. Firefox, Chrome, VS Code,
 1Password, mise, GitHub CLI, Claude Desktop, Claude Code, Docker, and Snap
 removal are enabled by default. Set `remove_snapd: false` if the VM needs any

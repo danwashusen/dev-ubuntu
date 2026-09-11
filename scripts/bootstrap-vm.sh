@@ -34,6 +34,7 @@ ssh_host=""
 ssh_wait_timeout=2700
 run_ansible="yes"
 ansible_playbook_path=""
+developer_extra_tasks_file=""
 list_images_only=false
 
 die() {
@@ -70,6 +71,8 @@ Options:
   --ssh-timeout SEC   Maximum SSH wait in seconds (default: 2700)
   --run-ansible BOOL  Provision and reboot after SSH is ready (default: yes)
   --ansible PATH      Path to ansible-playbook
+  --developer-extra-tasks PATH
+                      Optional developer task file, relative to the project or absolute
   --list-images       List discovered images and exit
   --help              Show this help
 EOF
@@ -157,6 +160,10 @@ while [[ $# -gt 0 ]]; do
       ansible_playbook_path="$2"
       shift 2
       ;;
+    --developer-extra-tasks)
+      developer_extra_tasks_file="$2"
+      shift 2
+      ;;
     --list-images)
       list_images_only=true
       shift
@@ -210,6 +217,14 @@ show_images() {
 if [[ "$list_images_only" == true ]]; then
   show_images
   exit 0
+fi
+
+if [[ -n "$developer_extra_tasks_file" ]]; then
+  if [[ "$developer_extra_tasks_file" != /* ]]; then
+    developer_extra_tasks_file="${project_dir}/${developer_extra_tasks_file}"
+  fi
+  [[ -f "$developer_extra_tasks_file" ]] ||
+    die "Developer task file does not exist: $developer_extra_tasks_file"
 fi
 
 [[ -x "$prlctl_path" ]] || die "prlctl is not executable at $prlctl_path"
@@ -642,7 +657,8 @@ if [[ "$start_vm" == yes ]]; then
         "$guest_user" \
         "$ssh_public_key_file" \
         "$vm_name" \
-        "$bootstrap_sudoers_path"
+        "$bootstrap_sudoers_path" \
+        "$developer_extra_tasks_file"
     fi
   fi
 else

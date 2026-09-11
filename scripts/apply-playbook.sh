@@ -16,6 +16,7 @@ ssh_host=""
 ssh_public_key_file=""
 ssh_wait_timeout=2700
 ansible_playbook_path=""
+developer_extra_tasks_file=""
 playbook_args=()
 
 die() {
@@ -35,6 +36,8 @@ Options:
   --ssh-key PATH      Authorized SSH public key
   --ssh-timeout SEC   Maximum SSH wait in seconds (default: 2700)
   --ansible PATH      Path to ansible-playbook
+  --developer-extra-tasks PATH
+                      Optional developer task file, relative to the project or absolute
   --help              Show this help
 EOF
 }
@@ -69,6 +72,10 @@ while [[ $# -gt 0 ]]; do
       ansible_playbook_path="$2"
       shift 2
       ;;
+    --developer-extra-tasks)
+      developer_extra_tasks_file="$2"
+      shift 2
+      ;;
     --)
       shift
       playbook_args=("$@")
@@ -83,6 +90,14 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -n "$developer_extra_tasks_file" ]]; then
+  if [[ "$developer_extra_tasks_file" != /* ]]; then
+    developer_extra_tasks_file="${project_dir}/${developer_extra_tasks_file}"
+  fi
+  [[ -f "$developer_extra_tasks_file" ]] ||
+    die "Developer task file does not exist: $developer_extra_tasks_file"
+fi
 
 [[ -n "$vm_name" ]] || die "VM_NAME is required"
 [[ -x "$prlctl_path" ]] || die "prlctl is not executable at $prlctl_path"
@@ -151,4 +166,5 @@ provision_apply_playbook \
   "$guest_user" \
   "$ssh_public_key_file" \
   "$vm_name" \
+  "$developer_extra_tasks_file" \
   "${playbook_args[@]}"

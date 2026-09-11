@@ -1,6 +1,7 @@
 ---
-# Copy this file to developer_extra_tasks.yml and add normal Ansible tasks.
-# The copied file is loaded automatically and ignored by Git.
+# Copy this file to developer_extra_tasks.yml, or to a named profile such as
+# developer_extra_tasks/rails.yml, and add normal Ansible tasks. Both locations
+# are ignored by Git; select a named profile with DEVELOPER_EXTRA_TASKS_FILE.
 #
 # Example (replace the empty list below):
 #

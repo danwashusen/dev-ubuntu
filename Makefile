@@ -23,6 +23,7 @@ RUN_ANSIBLE ?= yes
 ANSIBLE_PLAYBOOK ?=
 BECOME_ARGS ?= --ask-become-pass
 PLAYBOOK_ARGS ?=
+DEVELOPER_EXTRA_TASKS_FILE ?=
 
 .PHONY: help bootstrap apply-playbook images vms
 
@@ -50,7 +51,8 @@ bootstrap: ## Interactively create an ARM64 Ubuntu VM from an ISO
 		--ssh-host "$(SSH_HOST)" \
 		--ssh-timeout "$(SSH_WAIT_TIMEOUT)" \
 		--run-ansible "$(RUN_ANSIBLE)" \
-		--ansible "$(ANSIBLE_PLAYBOOK)"
+		--ansible "$(ANSIBLE_PLAYBOOK)" \
+		--developer-extra-tasks "$(DEVELOPER_EXTRA_TASKS_FILE)"
 
 apply-playbook: ## Apply site.yml to an existing bootstrapped Parallels VM
 	@./scripts/apply-playbook.sh \
@@ -61,6 +63,7 @@ apply-playbook: ## Apply site.yml to an existing bootstrapped Parallels VM
 		--ssh-key "$(SSH_PUBLIC_KEY)" \
 		--ssh-timeout "$(SSH_WAIT_TIMEOUT)" \
 		--ansible "$(ANSIBLE_PLAYBOOK)" \
+		--developer-extra-tasks "$(DEVELOPER_EXTRA_TASKS_FILE)" \
 		-- $(BECOME_ARGS) $(PLAYBOOK_ARGS)
 
 images: ## List discovered Ubuntu Server ARM64 ISO images, newest first

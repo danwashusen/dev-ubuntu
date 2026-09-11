@@ -167,3 +167,7 @@ reboot_after_provision: false
 
 # Add machine-specific apt packages without changing a role.
 developer_extra_packages: []
+
+# Optional controller-side task file. Relative paths are resolved from the
+# project directory; Make can override this with DEVELOPER_EXTRA_TASKS_FILE.
+developer_extra_tasks_file: developer_extra_tasks.yml
