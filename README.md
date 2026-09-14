@@ -413,7 +413,7 @@ folders before treating the VM as finished.
 Parallels Tools publishes resized virtio display modes, but its Wayland display
 client targets GNOME/Mutter rather than Hyprland. Parallels v27 and Ubuntu's
 Hyprland 0.53 currently reject runtime modesets, including ordinary advertised
-resolutions. The safe default is therefore a fixed `1920x1200@59.88` startup
+resolutions. The safe default is therefore a fixed `2560x1600@59.99` startup
 mode, controlled by `parallels_hyprland_fixed_mode`. This gives the VM a useful
 window size immediately after login without depending on a resize event.
 

@@ -145,7 +145,7 @@ parallels_hyprland_output: Virtual-1
 # Parallels v27 publishes live sizes, but its virtio GPU rejects Hyprland's
 # runtime modesets. Use a practical fixed startup size instead.
 parallels_dynamic_resolution_enabled: false
-parallels_hyprland_fixed_mode: 1920x1200@59.88
+parallels_hyprland_fixed_mode: 2560x1600@59.99
 parallels_dynamic_resolution_poll_interval: 0.25
 # The legacy DRM path currently makes Hyprland 0.53 exit on Parallels v27.
 # Keep atomic modesetting enabled so a failed resize cannot break login.
