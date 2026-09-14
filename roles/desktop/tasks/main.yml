@@ -170,6 +170,7 @@
   tags: [parallels_dynamic_resolution]
 
 - name: Install VM-compatible Ghostty launcher
+  tags: [ghostty]
   ansible.builtin.template:
     src: ghostty-wrapper.sh.j2
     dest: "{{ workstation_home }}/.local/bin/ghostty"

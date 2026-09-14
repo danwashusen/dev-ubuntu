@@ -3,4 +3,8 @@
 # Parallels virgl does not expose the OpenGL 4.3 required by Ghostty.
 export LIBGL_ALWAYS_SOFTWARE=1
 {% endif %}
+{% if ghostty_force_xwayland | bool %}
+# Avoid Ghostty's intermittent native-Wayland clipboard buffer mismatch.
+export GDK_BACKEND=x11
+{% endif %}
 exec /usr/bin/ghostty "$@"

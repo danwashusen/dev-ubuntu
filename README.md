@@ -209,7 +209,9 @@ snaps. Useful display settings include
 `ui_font_size`, and `ghostty_font_size`. The main modifier defaults to `ALT SUPER`, requiring
 Option+Command together for Hyprland shortcuts in Parallels. Ghostty defaults
 to scoped Mesa software rendering through `ghostty_force_software_rendering`
-because Parallels virgl does not expose Ghostty's required OpenGL version.
+because Parallels virgl does not expose Ghostty's required OpenGL version. It
+also defaults to the XWayland GTK backend through `ghostty_force_xwayland` to
+avoid intermittent native-Wayland clipboard reads from the wrong selection.
 
 The desktop role installs Ubuntu's `fonts-jetbrains-mono` package. It is the
 primary Ghostty font and the configured face for Waybar, fuzzel, mako, and GTK
@@ -422,6 +424,19 @@ shared-clipboard helper from entering the tiled layout when input is released.
 Set `parallels_dynamic_resolution_enabled: true` only to experiment with the
 XWayland `prlcc` bridge; it is disabled by default because the current virtio
 driver rejects the requested mode.
+
+Ghostty alone uses XWayland by default because its GTK/Wayland clipboard path
+can intermittently read the PRIMARY selection instead of CLIPBOARD. This leaves
+Hyprland and the remaining desktop native Wayland. After changing
+`ghostty_force_xwayland`, sign out of the graphical session and back in so the
+single-instance Ghostty process is recreated with the selected GTK backend.
+Apply only the managed launcher change with:
+
+```bash
+make apply-playbook \
+  VM_NAME="Ubuntu Workstation" \
+  PLAYBOOK_ARGS="--tags ghostty"
+```
 
 Parallels' virtio GPU currently rejects Aquamarine's atomic test commit when
 Hyprland changes the framebuffer size. Although Aquamarine exposes a legacy

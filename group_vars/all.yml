@@ -161,6 +161,9 @@ ghostty_font_family: "{{ ui_font_family }}"
 ghostty_fallback_font_family: MesloLGS NF
 # Parallels virgl exposes less than the OpenGL 4.3 required by Ghostty.
 ghostty_force_software_rendering: true
+# Ghostty's native GTK/Wayland clipboard reader can intermittently use the
+# PRIMARY selection instead of CLIPBOARD. XWayland avoids that failure path.
+ghostty_force_xwayland: true
 
 # Reboot remains an explicit choice by default.
 reboot_after_provision: false
