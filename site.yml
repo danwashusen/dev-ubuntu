@@ -99,6 +99,10 @@
       when: prepare_parallels_tools_media | bool
       tags: [parallels_tools]
 
+    - role: parallels_shared_folder
+      when: configure_parallels_shared_folder | bool
+      tags: [parallels_shared_folder]
+
     - role: shell
       tags: [shell]
 

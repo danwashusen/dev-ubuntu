@@ -62,10 +62,11 @@ prompts for the VM name, ISO, CPUs, memory, disk size, and whether to start,
 displays the complete proposal, and requires explicit confirmation.
 
 The created VM uses a lean Linux integration profile: bidirectional clipboard
-and UTC time synchronization are enabled; application sharing, shared folders,
-shared profile/cloud, printer synchronization, automatic camera/smart-card/
-gamepad sharing, host location, Rosetta, and automatic SSH-key injection are
-disabled.
+and UTC time synchronization are enabled; application sharing, broad home/disk
+sharing, shared profile/cloud, printer synchronization, automatic
+camera/smart-card/gamepad sharing, host location, Rosetta, and automatic
+SSH-key injection are disabled. If `~/Parallels/Shared` already exists on the
+Mac, Ansible exposes only that directory to the VM at `/mnt/shared`.
 
 Autoinstall defaults the Ubuntu username to the current macOS account name and
 the hostname to a normalized form of the VM name. It selects one SSH public key
@@ -102,7 +103,7 @@ confirmation:
 make bootstrap \
   VM_NAME="Ubuntu Workstation" \
   IMAGE="$HOME/Downloads/ubuntu-26.04.1-live-server-arm64.iso" \
-  CPUS=8 MEMORY_MB=8192 DISK_GB=24 START_VM=yes
+  CPUS=8 MEMORY_MB=12288 DISK_GB=24 START_VM=yes
 ```
 
 Override the generated identity or selected public key when needed:
@@ -386,6 +387,34 @@ convenient, or set `reboot_after_provision: true`. The full bootstrap workflow
 enables this setting, waits for the reboot, and returns only after the
 workstation is reachable again.
 
+## First-login setup
+
+### 1Password
+
+Ansible installs the native app and CLI, configures their system integration,
+and starts 1Password silently in the Waybar system tray. The security-sensitive
+account settings must be enabled once from inside the unlocked app:
+
+1. Open 1Password from the Waybar tray and sign in to the account.
+2. In **Settings > General**, enable **Keep 1Password in the system tray**.
+3. In **Settings > Security**, enable
+   **Unlock using system authentication**.
+4. Lock 1Password, then enter the 1Password account password once when asked.
+5. Unlock the app and, in **Settings > Developer**, enable
+   **Integrate with 1Password CLI**.
+6. Open a new terminal and verify the integration:
+
+   ```bash
+   op vault list
+   ```
+
+The CLI should now request the Linux system password through the desktop
+authentication prompt. Ansible already starts the app silently with Hyprland,
+so 1Password's separate **Start at login** option is not required. See
+[system authentication on Linux](https://support.1password.com/system-authentication-linux/)
+and [1Password CLI app integration](https://www.1password.dev/cli/app-integration/)
+for the upstream behavior and security requirements.
+
 ## Parallels Tools
 
 The base role installs `dkms`, `libelf-dev`, `build-essential`, `pkg-config`, and
@@ -405,6 +434,30 @@ sudo ./install
 A VM snapshot immediately before this step is sensible.
 If the kernel was upgraded by the playbook, reboot before installing the tools
 so the running kernel and installed headers agree.
+
+### Host shared folder
+
+The `parallels_shared_folder` role conditionally shares the existing macOS
+`~/Parallels/Shared` directory as a read/write Parallels custom share. It does
+not create the host directory, share the macOS home directory, or enable
+Parallels' all-disk sharing. In the VM, a system service mounts the share at
+`/mnt/shared` during boot using the Parallels Tools FUSE driver.
+
+Ubuntu 26.04 confines root-initiated `fusermount3` mounts with AppArmor. The
+role avoids broadening that security policy: it enables FUSE's `allow_other`
+support and runs the Parallels FUSE client as the workstation user from a
+system service. The mount starts automatically, remains visible to other users,
+and is verified by listing it before the role completes.
+
+When the host directory is absent, the playbook skips all sharing changes and
+prints the command needed to create it. After creating it deliberately, apply
+only this integration with:
+
+```bash
+make apply-playbook \
+  VM_NAME="Ubuntu Workstation" \
+  PLAYBOOK_ARGS="--tags parallels_shared_folder"
+```
 
 Wayland integration in Parallels can vary by Parallels Tools release. Test
 dynamic resolution, shared clipboard, pointer behaviour, audio, and shared

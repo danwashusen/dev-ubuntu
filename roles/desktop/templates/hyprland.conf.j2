@@ -17,6 +17,9 @@ exec-once = systemctl --user start parallels-prlcp-wayland.service parallels-prl
 exec-once = waybar
 exec-once = mako
 exec-once = systemctl --user start hyprpolkitagent.service
+{% if install_1password | bool and onepassword_start_in_background | bool %}
+exec-once = /opt/1Password/1password --silent
+{% endif %}
 exec-once = wl-paste --type text --watch cliphist store
 exec-once = wl-paste --type image --watch cliphist store
 

@@ -1,0 +1,180 @@
+---
+- name: Inspect optional Parallels host shared folder
+  ansible.builtin.stat:
+    path: "{{ parallels_host_shared_folder_path }}"
+  register: parallels_host_shared_folder
+  delegate_to: localhost
+  become: false
+
+- name: Report missing optional Parallels host shared folder
+  ansible.builtin.debug:
+    msg:
+      - >-
+        Host sharing was skipped because
+        {{ parallels_host_shared_folder_path }} does not exist on the macOS
+        Ansible controller.
+      - >-
+        To enable it later, create the folder yourself with:
+        mkdir -p {{ parallels_host_shared_folder_path | quote }}
+      - >-
+        Then rerun with --tags parallels_shared_folder for VM
+        {{ parallels_vm_name | quote }}.
+  when: not (parallels_host_shared_folder.stat.isdir | default(false))
+  delegate_to: localhost
+  become: false
+
+- name: Configure optional Parallels host shared folder
+  when: parallels_host_shared_folder.stat.isdir | default(false)
+  block:
+    - name: Validate Parallels shared-folder settings
+      ansible.builtin.assert:
+        that:
+          - parallels_vm_name != "YOUR_VM_NAME"
+          - parallels_host_shared_folder_name is match('^[A-Za-z0-9_-]+$')
+          - parallels_host_shared_folder_mode in ['ro', 'rw']
+          - parallels_guest_shared_folder_path.startswith('/')
+        fail_msg: >-
+          Configure a real Parallels VM name, a simple share name, a ro/rw
+          mode, and an absolute guest mount path.
+
+    - name: Enable only user-defined Parallels host folders
+      ansible.builtin.command:
+        argv:
+          - "{{ parallels_prlctl_path }}"
+          - set
+          - "{{ parallels_vm_name }}"
+          - --shf-host
+          - "on"
+          - --shf-host-defined
+          - "off"
+          - --shf-host-automount
+          - "off"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Update existing Parallels custom share
+      ansible.builtin.command:
+        argv:
+          - "{{ parallels_prlctl_path }}"
+          - set
+          - "{{ parallels_vm_name }}"
+          - --shf-host-set
+          - "{{ parallels_host_shared_folder_name }}"
+          - --path
+          - "{{ parallels_host_shared_folder_path }}"
+          - --mode
+          - "{{ parallels_host_shared_folder_mode }}"
+          - --enable
+      register: parallels_shared_folder_update
+      failed_when: false
+      changed_when: false
+      delegate_to: localhost
+      become: false
+
+    - name: Add missing Parallels custom share
+      ansible.builtin.command:
+        argv:
+          - "{{ parallels_prlctl_path }}"
+          - set
+          - "{{ parallels_vm_name }}"
+          - --shf-host-add
+          - "{{ parallels_host_shared_folder_name }}"
+          - --path
+          - "{{ parallels_host_shared_folder_path }}"
+          - --mode
+          - "{{ parallels_host_shared_folder_mode }}"
+          - --enable
+      when: parallels_shared_folder_update.rc != 0
+      changed_when: true
+      delegate_to: localhost
+      become: false
+
+    - name: Resolve legacy shared-folder automount unit name
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/systemd-escape
+          - --path
+          - --suffix=automount
+          - "{{ parallels_guest_shared_folder_path }}"
+      register: parallels_shared_folder_automount_unit
+      changed_when: false
+
+    - name: Stop legacy root-owned shared-folder automount
+      ansible.builtin.systemd:
+        name: "{{ parallels_shared_folder_automount_unit.stdout }}"
+        state: stopped
+      failed_when: false
+      changed_when: false
+
+    - name: Remove legacy root-owned shared-folder mount
+      ansible.builtin.blockinfile:
+        path: /etc/fstab
+        marker: "# {mark} dev-ubuntu Parallels host shared folder"
+        state: absent
+        mode: "0644"
+
+    - name: Reload systemd after removing the legacy automount
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Create Parallels guest shared-folder mount point
+      ansible.builtin.file:
+        path: "{{ parallels_guest_shared_folder_path }}"
+        state: directory
+        owner: "{{ workstation_user }}"
+        group: "{{ workstation_group }}"
+        mode: "0755"
+
+    - name: Permit Parallels FUSE mounts to expose files to other users
+      ansible.builtin.lineinfile:
+        path: /etc/fuse.conf
+        regexp: '^\s*#?\s*user_allow_other\s*$'
+        line: user_allow_other
+        mode: "0644"
+
+    - name: Inspect Parallels FUSE mount helper
+      ansible.builtin.stat:
+        path: /usr/sbin/mount.fuse.prl_fsd
+      register: parallels_shared_folder_mount_helper
+
+    - name: Configure Parallels shared-folder service
+      ansible.builtin.template:
+        src: parallels-shared-folder.service.j2
+        dest: /etc/systemd/system/dev-ubuntu-parallels-shared-folder.service
+        owner: root
+        group: root
+        mode: "0644"
+      register: parallels_shared_folder_service
+
+    - name: Enable and start Parallels shared-folder service
+      ansible.builtin.systemd:
+        name: dev-ubuntu-parallels-shared-folder.service
+        enabled: true
+        daemon_reload: true
+        state: >-
+          {{ parallels_shared_folder_service.changed |
+          ternary('restarted', 'started') }}
+      when: >-
+        parallels_shared_folder_mount_helper.stat.executable |
+        default(false)
+
+    - name: Verify access to the Parallels shared folder
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/ls
+          - -A
+          - "{{ parallels_guest_shared_folder_path }}"
+      changed_when: false
+      when: >-
+        parallels_shared_folder_mount_helper.stat.executable |
+        default(false)
+
+    - name: Report deferred Parallels shared-folder mount
+      ansible.builtin.debug:
+        msg: >-
+          {{ parallels_guest_shared_folder_path }} is configured and will become
+          available after Parallels Tools is installed and this role is rerun.
+      when: >-
+        not (parallels_shared_folder_mount_helper.stat.executable |
+        default(false))

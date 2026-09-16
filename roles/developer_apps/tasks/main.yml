@@ -73,6 +73,13 @@
   tags: [onepassword]
   when: install_1password | bool
   block:
+    - name: Install 1Password desktop authentication prerequisites
+      ansible.builtin.apt:
+        name:
+          - hyprpolkitagent
+          - polkitd
+        state: present
+
     - name: Create 1Password download cache
       ansible.builtin.file:
         path: /var/cache/dev-ubuntu/1password
@@ -249,6 +256,11 @@
         path: /usr/share/applications/1password.desktop
       register: onepassword_desktop_entry
 
+    - name: Inspect existing 1Password Polkit integration
+      ansible.builtin.stat:
+        path: /usr/share/polkit-1/actions/com.1password.1Password.policy
+      register: onepassword_existing_polkit_policy
+
     - name: Install 1Password desktop-menu compatibility helper
       ansible.builtin.copy:
         dest: /var/cache/dev-ubuntu/1password/xdg-desktop-menu
@@ -287,8 +299,22 @@
         - >-
           onepassword_extracted.changed or
           not onepassword_command.stat.exists or
-          not onepassword_desktop_entry.stat.exists
+          not onepassword_desktop_entry.stat.exists or
+          not onepassword_existing_polkit_policy.stat.exists
       changed_when: true
+
+    - name: Inspect installed 1Password Polkit policy
+      ansible.builtin.stat:
+        path: /usr/share/polkit-1/actions/com.1password.1Password.policy
+      register: onepassword_polkit_policy
+
+    - name: Verify 1Password system-authentication support
+      ansible.builtin.assert:
+        that:
+          - onepassword_polkit_policy.stat.isreg | default(false)
+        fail_msg: >-
+          The 1Password Polkit policy was not installed; system authentication
+          and desktop-integrated CLI authentication will not be available.
 
 - name: Install mise from its official apt repository
   when: install_mise | bool

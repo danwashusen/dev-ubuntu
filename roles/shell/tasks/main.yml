@@ -166,6 +166,7 @@
     - controller_powerlevel10k_font_directory.stat.isdir | default(false)
 
 - name: Configure zsh
+  tags: [onepassword]
   ansible.builtin.template:
     src: zshrc.j2
     dest: "{{ workstation_home }}/.zshrc"

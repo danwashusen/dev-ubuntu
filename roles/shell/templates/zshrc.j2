@@ -9,6 +9,10 @@ export PATH="$HOME/.local/bin:$PATH"
 
 export EDITOR=nvim
 export VISUAL=nvim
+{% if install_1password | bool and onepassword_enable_cli_app_integration | bool %}
+# Use desktop-app authentication after enabling the integration in 1Password.
+export OP_BIOMETRIC_UNLOCK_ENABLED=true
+{% endif %}
 
 HISTFILE="$HOME/.zsh_history"
 HISTSIZE=10000

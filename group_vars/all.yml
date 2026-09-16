@@ -38,6 +38,15 @@ parallels_prlctl_path: /usr/local/bin/prlctl
 parallels_tools_iso_path: "/Applications/Parallels Desktop.app/Contents/Resources/Tools/prl-tools-lin-arm.iso"
 parallels_tools_mount_path: /media/cdrom0
 
+# Share only this explicit host directory when it already exists. Parallels'
+# broad home/all-disk sharing and automatic /media/psf mounts remain disabled.
+configure_parallels_shared_folder: true
+parallels_host_shared_folder_path: >-
+  {{ lookup('ansible.builtin.env', 'HOME') }}/Parallels/Shared
+parallels_host_shared_folder_name: Shared
+parallels_host_shared_folder_mode: rw
+parallels_guest_shared_folder_path: /mnt/shared
+
 # Autoinstall creates this temporary NOPASSWD rule so the initial playbook can
 # run unattended. site.yml removes it as its final privileged action.
 bootstrap_passwordless_sudo_path: /etc/sudoers.d/99-dev-ubuntu-bootstrap
@@ -107,6 +116,11 @@ onepassword_cli_repository_url: >-
   https://downloads.1password.com/linux/debian/arm64
 onepassword_debsig_policy_url: >-
   https://downloads.1password.com/linux/debian/debsig/1password.pol
+# Keep the desktop app available to `op` without opening a tiled window.
+onepassword_start_in_background: true
+# This opts the CLI into desktop-app authentication after the protected
+# integration switches have been enabled once inside the unlocked app.
+onepassword_enable_cli_app_integration: true
 
 # Copy only the selected Claude Code configuration below from the Ansible
 # controller when it exists. Personal files remain outside this repository.

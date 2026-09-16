@@ -62,6 +62,7 @@
     purge: true
 
 - name: Create desktop configuration directories
+  tags: [onepassword]
   ansible.builtin.file:
     path: "{{ workstation_home }}/{{ item }}"
     state: directory
@@ -83,6 +84,7 @@
     - .config/waybar
 
 - name: Install user desktop configuration
+  tags: [onepassword]
   ansible.builtin.template:
     src: "{{ item.src }}"
     dest: "{{ workstation_home }}/{{ item.dest }}"

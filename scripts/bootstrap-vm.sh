@@ -35,6 +35,8 @@ ssh_wait_timeout=2700
 run_ansible="yes"
 ansible_playbook_path=""
 developer_extra_tasks_file=""
+parallels_host_shared_folder_path="${HOME}/Parallels/Shared"
+parallels_guest_shared_folder_path="/mnt/shared"
 list_images_only=false
 
 die() {
@@ -250,7 +252,7 @@ vm_exists() {
 # These values and the integration settings applied below form the checked-in
 # "Dev Server" profile. A live source VM is deliberately not required.
 default_cpus=4
-default_memory_mb=8192
+default_memory_mb=12288
 default_disk_gb=24
 
 if [[ -n "$sizing_vm" ]]; then
@@ -460,8 +462,15 @@ printf '  Disk:            %s GB (expanding)\n' "$disk_gb"
 printf '  Network:         shared\n'
 printf '  Clipboard:       bidirectional\n'
 printf '  Time sync:       enabled, UTC only\n'
-printf '  Integration:     apps, folders, profile, cloud, printers, cameras,\n'
+printf '  Integration:     apps, profile, cloud, printers, cameras,\n'
 printf '                   smart cards, gamepads, location and SSH injection off\n'
+if [[ -d "$parallels_host_shared_folder_path" && "$run_ansible" == yes ]]; then
+  printf '  Custom share:    %s -> %s (read/write)\n' \
+    "$parallels_host_shared_folder_path" \
+    "$parallels_guest_shared_folder_path"
+else
+  printf '  Custom share:    skipped; host folder is absent or Ansible is disabled\n'
+fi
 if [[ "$autoinstall_enabled" == yes ]]; then
   printf '  Autoinstall:     enabled (entire VM disk)\n'
   printf '  Ubuntu source:   standard server\n'

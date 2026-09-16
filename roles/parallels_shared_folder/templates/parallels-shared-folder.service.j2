@@ -1,0 +1,16 @@
+[Unit]
+Description=Parallels host shared folder at {{ parallels_guest_shared_folder_path }}
+Requires=prltoolsd.service
+After=prltoolsd.service
+
+[Service]
+Type=simple
+User={{ workstation_user }}
+Group={{ workstation_group }}
+UMask=0022
+ExecStart=/usr/bin/prl_fsd {{ parallels_guest_shared_folder_path | quote }} -f -onosuid,nodev,noatime,fsname={{ parallels_host_shared_folder_name }},subtype=prl_fsd --share --sf={{ parallels_host_shared_folder_name }}
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
